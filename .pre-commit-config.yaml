@@ -1,0 +1,40 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+    - id: check-added-large-files
+    - id: check-case-conflict
+    - id: check-yaml
+    - id: check-ast
+    - id: check-merge-conflict
+    - id: double-quote-string-fixer
+    - id: trailing-whitespace
+      exclude: .github|.*\.(png|gwb)$
+      args: [--markdown-linebreak-ext=md]
+    - id: end-of-file-fixer
+      exclude: .github|.*\.(png|gwb)$r
+
+  - repo: https://github.com/PyCQA/autoflake
+    rev: v2.2.1
+    hooks:
+    - id: autoflake
+      args: [--remove-all-unused-imports, --in-place]
+
+  - repo: https://github.com/pre-commit/pygrep-hooks
+    rev: v1.10.0
+    hooks:
+    - id: python-use-type-annotations
+    - id: python-check-blanket-type-ignore
+    - id: python-check-mock-methods
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.8
+    hooks:
+      - id: ruff
+        args:
+          - --fix
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.1
+    hooks:
+      - id: isort
