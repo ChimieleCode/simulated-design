@@ -3,7 +3,8 @@ import unittest
 from src.portal_frame_method import (compute_beam_moments, compute_beam_shears,
                                      compute_column_moments,
                                      compute_columns_shear,
-                                     compute_floors_shear)
+                                     compute_floors_shear,
+                                     compute_seismic_axial_load)
 
 
 class TestStructuralCalculations(unittest.TestCase):
@@ -62,6 +63,18 @@ class TestStructuralCalculations(unittest.TestCase):
         # Expected shear forces for each beam
         expected_beam_shear = [33.34, 13.34]
 
-        # Assert that the computed moments match the expected values
+        # Assert that the computed shears match the expected values
         for v, e in zip(beam_shear, expected_beam_shear):
+            self.assertAlmostEqual(v, e, 1)
+
+
+    def test_column_axial(self):
+        beam_shears = [33.34, 13.34]
+        axial_load = compute_seismic_axial_load(beam_shears)
+
+        # Expected axial loads for each column
+        expected_axial = [46.68, 13.34]
+
+        # Assert that the computed axial loads match the expected values
+        for v, e in zip(axial_load, expected_axial):
             self.assertAlmostEqual(v, e, 1)

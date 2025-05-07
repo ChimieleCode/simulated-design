@@ -176,7 +176,35 @@ def compute_columns_shear(floor_shears: Sequence[float], column_count: int) -> L
     return [shear / (column_count - 1) for shear in floor_shears]
 
 
+def compute_seismic_axial_load(beam_shears: Sequence[float]) -> List[float]:
+    """
+    Computes the cumulative seismic axial load for beams.
 
+    The axial load for each beam is calculated as the cumulative sum of the beam
+    shears from the top floor to the bottom floor. The result is a list where each
+    element represents the cumulative axial load at each beam, starting from the
+    bottom.
+
+    :param beam_shears:
+        A sequence of shear forces for each beam, where each element represents
+        the shear force at a specific beam. The sequence is expected to be ordered
+        from the top floor to the bottom floor.
+
+    :return:
+        A list of cumulative seismic axial loads for each beam, starting from the
+        bottom floor.
+
+    :Example:
+
+    >>> compute_seismic_axial_load([10.0, 20.0, 30.0])
+    [60.0, 50.0, 30.0]
+
+    This output indicates:
+    - For the bottom beam: axial load = 10.0 + 20.0 + 30.0 = 60.0
+    - For the middle beam: axial load = 20.0 + 30.0 = 50.0
+    - For the top beam: axial load = 30.0 = 30.0
+    """
+    return list(np.cumsum(beam_shears[::-1])[::-1])
 
 
 # Hadlers for the data relative to Seismic sollicitations
@@ -316,8 +344,12 @@ class RegularSpanFrameSollicitations(
         A list of shear forces for columns at each floor.
     """
 
-    def __init__(self, beams_moment: List[float], columns_moment: List[float],
-                 beams_shear: List[float], columns_shear: List[float]):
+    def __init__(self,
+                 beams_moment: List[float],
+                 columns_moment: List[float],
+                 beams_shear: List[float],
+                 columns_shear: List[float],
+                 axial_loads: List[float]):
         """
         Initializes a `RegularSpanFrameSollicitations` instance.
 
@@ -332,6 +364,27 @@ class RegularSpanFrameSollicitations(
         """
         RegularSpanFrameMoments.__init__(self, beams_moment, columns_moment)
         RegularSpanFrameShears.__init__(self, beams_shear, columns_shear)
+        self.axial_loads = axial_loads
+
+    def get_axial_loads(self, floor: int, is_downwind: bool = True) -> Optional[float]:
+        """
+        Retrieves the axial load for a specified floor.
+
+        :param floor:
+            The index of the floor for which the axial load is requested.
+
+        :param is_downwind:
+            A boolean indicating whether the axial load is downwind or not.
+
+        :return:
+            The axial load at the specified floor if it exists; otherwise, None.
+        """
+        try:
+            axial = self.axial_loads[floor]
+            if not is_downwind:
+                return axial * -1
+        except IndexError:
+            return None
 
 
 def get_portal_frame_method_sollicitations(
