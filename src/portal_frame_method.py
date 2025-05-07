@@ -79,7 +79,7 @@ def compute_beam_moments(columns_moment: Sequence[float]) -> List[float]:
     """
     Computes the beam moments based on column moments.
 
-    For each floor (except the last one), the moment is computed as the product
+    For each floor (except the last one), the moment is computed as the average
     of the column moments of the current floor and the next floor. For the last
     floor, the moment is calculated as half of the moment from the previous floor.
 
@@ -88,35 +88,23 @@ def compute_beam_moments(columns_moment: Sequence[float]) -> List[float]:
         for a specific floor.
 
     :return:
-        A list of beam moments. Each moment is computed as the product of the moments
+        A list of beam moments. Each moment is computed as the average of the moments
         from the current and the next floor, with the last floor's moment being half
         of the previous floor's moment.
 
     :raises ValueError:
-        If `columns_moment` is empty, a ValueError is raised. If there is only one
-        element in `columns_moment`, the function calculates the moment for the last
-        floor as half of the single element, which might not be meaningful.
-
-    :Example:
-
-    >>> compute_beam_moments([10.0, 20.0, 30.0])
-    [200.0, 600.0, 100.0]
-
-    This output indicates that:
-    - For the first floor: moment = 10.0 * 20.0 = 200.0
-    - For the second floor: moment = 20.0 * 30.0 = 600.0
-    - For the last floor: moment = 600.0 / 2 = 100.0
+        If `columns_moment` is empty, a ValueError is raised.
     """
     if not columns_moment:
         raise ValueError('`columns_moment` cannot be empty.')
 
-    if len(columns_moment) == 1:
-        raise ValueError('`columns_moment` must contain at least two elements to compute moments for all floors.')
+    moments = list()
+    if len(columns_moment) > 1:
+        # Compute moments for all floors except the last
+        moments = [(prev + next_) / 2 for prev, next_ in zip(columns_moment, columns_moment[1:])]
 
-    # Compute moments for all floors except the last
-    moments = [prev * next_ for prev, next_ in zip(columns_moment, columns_moment[1:])]
     # Compute moment for the last floor
-    moments.append(moments[-1] / 2)
+    moments.append(columns_moment[-1] / 2)
 
     return moments
 
@@ -188,6 +176,10 @@ def compute_columns_shear(floor_shears: Sequence[float], column_count: int) -> L
     return [shear / (column_count - 1) for shear in floor_shears]
 
 
+
+
+
+# Hadlers for the data relative to Seismic sollicitations
 @dataclass
 class RegularSpanFrameMoments:
     """
