@@ -1,5 +1,5 @@
+from collections.abc import Callable, Sequence
 from enum import Enum
-from typing import Callable, Optional, Sequence
 
 
 class BuildingCode(Enum):
@@ -71,7 +71,7 @@ class SeismicForces:
             raise ValueError(f"Building code {building_code} is not supported.")
 
     @staticmethod
-    def _RDL_573_forces(weights: Sequence[float], seismic_cat: Optional[SeismicCat] = None) -> list[float]:
+    def _RDL_573_forces(weights: Sequence[float], seismic_cat: SeismicCat | None = None) -> list[float]:
         """
         Calculate forces for RDL 573 building code.
         """
@@ -118,7 +118,7 @@ class SeismicForces:
         weights: Sequence[float],
         floor_heights: Sequence[float],
         category: SeismicCat,
-        amp_coeff: Optional[float] = None
+        amp_coeff: float | None = None
     ) -> list[float]:
         """
         Calculate forces for DM 40 75 building code.
@@ -187,7 +187,7 @@ class SeismicWeight:
         building_code: BuildingCode,
         G: float,
         Q: float,
-        seismic_cat: Optional[SeismicCat] = None
+        seismic_cat: SeismicCat | None = None
     ) -> float:
         """
         Compute the seismic weight based on the building code and category.

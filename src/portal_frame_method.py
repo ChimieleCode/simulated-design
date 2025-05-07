@@ -1,5 +1,5 @@
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import List, Optional, Sequence
 
 import numpy as np
 
@@ -8,10 +8,10 @@ import numpy as np
 class RegularSpanFrame:
     span_length: float
     n_spans: int
-    heights: List[float]
+    heights: list[float]
 
 
-def compute_floors_shear(forces: Sequence[float]) -> List[float]:
+def compute_floors_shear(forces: Sequence[float]) -> list[float]:
     """
     Computes the shear forces for each floor based on the provided forces.
 
@@ -43,7 +43,7 @@ def compute_floors_shear(forces: Sequence[float]) -> List[float]:
     return list(np.cumsum(forces[::-1])[::-1])
 
 
-def compute_beam_shears(beam_moments: Sequence[float], span_length: float) -> List[float]:
+def compute_beam_shears(beam_moments: Sequence[float], span_length: float) -> list[float]:
     """
     Computes the shear forces for beams based on their moments and span length.
 
@@ -82,7 +82,7 @@ def compute_beam_shears(beam_moments: Sequence[float], span_length: float) -> Li
     return [2 * moment / span_length for moment in beam_moments]
 
 
-def compute_beam_moments(columns_moment: Sequence[float]) -> List[float]:
+def compute_beam_moments(columns_moment: Sequence[float]) -> list[float]:
     """
     Computes the beam moments based on column moments.
 
@@ -116,7 +116,7 @@ def compute_beam_moments(columns_moment: Sequence[float]) -> List[float]:
     return moments
 
 
-def compute_column_moments(columns_shear: Sequence[float], heights: Sequence[float]) -> List[float]:
+def compute_column_moments(columns_shear: Sequence[float], heights: Sequence[float]) -> list[float]:
     """
     Computes the moments for each column based on shear forces and heights.
 
@@ -156,7 +156,7 @@ def compute_column_moments(columns_shear: Sequence[float], heights: Sequence[flo
     return [shear * h for shear, h in zip(columns_shear, heights)]
 
 
-def compute_columns_shear(floor_shears: Sequence[float], column_count: int) -> List[float]:
+def compute_columns_shear(floor_shears: Sequence[float], column_count: int) -> list[float]:
     """
     Distributes shear forces per floor across columns.
 
@@ -170,7 +170,7 @@ def compute_columns_shear(floor_shears: Sequence[float], column_count: int) -> L
         Number of columns on each floor. Must be greater than one.
 
     :return:
-        List of shear forces per column for each floor.
+        list of shear forces per column for each floor.
 
     :Example:
 
@@ -183,7 +183,7 @@ def compute_columns_shear(floor_shears: Sequence[float], column_count: int) -> L
     return [shear / (column_count - 1) for shear in floor_shears]
 
 
-def compute_seismic_axial_load(beam_shears: Sequence[float]) -> List[float]:
+def compute_seismic_axial_load(beam_shears: Sequence[float]) -> list[float]:
     """
     Computes the cumulative seismic axial load for beams.
 
@@ -225,10 +225,10 @@ class RegularSpanFrameMoments:
     :ivar columns_moment:
         A list of moments for columns at each floor.
     """
-    beams_moment: List[float]
-    columns_moment: List[float]
+    beams_moment: list[float]
+    columns_moment: list[float]
 
-    def get_beam_moment(self, floor: int) -> Optional[float]:
+    def get_beam_moment(self, floor: int) -> float | None:
         """
         Retrieves the beam moment for a specified floor.
 
@@ -243,7 +243,7 @@ class RegularSpanFrameMoments:
         except IndexError:
             return None
 
-    def get_internal_columns_moment(self, floor: int) -> Optional[float]:
+    def get_internal_columns_moment(self, floor: int) -> float | None:
         """
         Retrieves the moment for an internal column at a specified floor.
 
@@ -258,7 +258,7 @@ class RegularSpanFrameMoments:
         except IndexError:
             return None
 
-    def get_external_columns_moment(self, floor: int) -> Optional[float]:
+    def get_external_columns_moment(self, floor: int) -> float | None:
         """
         Retrieves the moment for an external column at a specified floor, halved.
 
@@ -284,10 +284,10 @@ class RegularSpanFrameShears:
     :ivar columns_shear:
         A list of shear forces for columns at each floor.
     """
-    beams_shear: List[float]
-    columns_shear: List[float]
+    beams_shear: list[float]
+    columns_shear: list[float]
 
-    def get_beams_shear(self, floor: int) -> Optional[float]:
+    def get_beams_shear(self, floor: int) -> float | None:
         """
         Retrieves the shear force for a beam at a specified floor.
 
@@ -302,7 +302,7 @@ class RegularSpanFrameShears:
         except IndexError:
             return None
 
-    def get_internal_columns_shear(self, floor: int) -> Optional[float]:
+    def get_internal_columns_shear(self, floor: int) -> float | None:
         """
         Retrieves the shear force for an internal column at a specified floor.
 
@@ -317,7 +317,7 @@ class RegularSpanFrameShears:
         except IndexError:
             return None
 
-    def get_external_columns_shear(self, floor: int) -> Optional[float]:
+    def get_external_columns_shear(self, floor: int) -> float | None:
         """
         Retrieves the shear force for an external column at a specified floor, halved.
 
@@ -352,11 +352,11 @@ class RegularSpanFrameSollicitations(
     """
 
     def __init__(self,
-                 beams_moment: List[float],
-                 columns_moment: List[float],
-                 beams_shear: List[float],
-                 columns_shear: List[float],
-                 axial_loads: List[float]):
+                 beams_moment: list[float],
+                 columns_moment: list[float],
+                 beams_shear: list[float],
+                 columns_shear: list[float],
+                 axial_loads: list[float]):
         """
         Initializes a `RegularSpanFrameSollicitations` instance.
 
@@ -373,7 +373,7 @@ class RegularSpanFrameSollicitations(
         RegularSpanFrameShears.__init__(self, beams_shear, columns_shear)
         self.axial_loads = axial_loads
 
-    def get_axial_loads(self, floor: int, is_downwind: bool = True) -> Optional[float]:
+    def get_axial_loads(self, floor: int, is_downwind: bool = True) -> float | None:
         """
         Retrieves the axial load for a specified floor.
 

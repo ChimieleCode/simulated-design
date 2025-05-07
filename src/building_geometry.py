@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import List
 
 
 @dataclass
@@ -44,7 +43,7 @@ class BuildingGeometry:
         return 2 * (self.n_main_spans * self.span_main + self.n_cross_spans * self.span_cross)
 
     @property
-    def comulative_floor_height(self) -> List[float]:
+    def comulative_floor_height(self) -> list[float]:
         """
         Returns the cumulative height from the base to each floor (for seismic load distribution).
         """

@@ -1,5 +1,5 @@
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -32,9 +32,9 @@ class StructureLoads:
 
 
 def compute_total_load(
-        area_loads: Optional[Sequence[Tuple[float, float]]] = None,
-        line_loads: Optional[Sequence[Tuple[float, float]]] = None,
-        punctual_loads: Optional[Sequence[Tuple[float, float]]] = None
+        area_loads: Sequence[tuple[float, float]] | None = None,
+        line_loads: Sequence[tuple[float, float]] | None = None,
+        punctual_loads: Sequence[tuple[float, float]] | None = None
     ) -> float:
     """
     Computes the total structural load by summing up loads from various sources,
@@ -82,7 +82,7 @@ class SeismicLoadDesign(StructureLoads):
     seismic_cat: SeismicCat
     building_code: BuildingCode
 
-    def compute_frame_sollicitations(self, building_geometry: BuildingGeometry) -> Tuple[RegularSpanFrameSollicitations, RegularSpanFrameSollicitations]:
+    def compute_frame_sollicitations(self, building_geometry: BuildingGeometry) -> tuple[RegularSpanFrameSollicitations, RegularSpanFrameSollicitations]:
         """
         Compute the seismic frame solicitations for both the main and cross directions
         of the building.
@@ -256,7 +256,7 @@ class GravityLoadDesignFullSpan(StructureLoads):
     due to gravity loads over the full span of a building.
     """
 
-    def compute_beam_moments(self, building_geometry: BuildingGeometry) -> List[BeamSollicitations]:
+    def compute_beam_moments(self, building_geometry: BuildingGeometry) -> list[BeamSollicitations]:
         """
         Compute the moments and shears for beams in the building due to gravity loads.
 
@@ -328,7 +328,7 @@ class GravityLoadDesignFullSpan(StructureLoads):
         return [BeamSollicitations(*beams) for beams in beams_sollicitation]
 
 
-    def compute_column_axials(self, building_geometry: BuildingGeometry) -> List[ColumnSollicitations]:
+    def compute_column_axials(self, building_geometry: BuildingGeometry) -> list[ColumnSollicitations]:
         """
         Compute the axial forces for columns in the building due to gravity loads.
 
