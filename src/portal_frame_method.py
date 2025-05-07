@@ -4,6 +4,13 @@ from typing import List, Optional, Sequence
 import numpy as np
 
 
+@dataclass
+class RegularSpanFrame:
+    span_length: float
+    n_spans: int
+    heights: List[float]
+
+
 def compute_floors_shear(forces: Sequence[float]) -> List[float]:
     """
     Computes the shear forces for each floor based on the provided forces.
@@ -424,10 +431,14 @@ def get_portal_frame_method_sollicitations(
     # Compute the shear forces for beams based on their moments and span length
     beams_shear = compute_beam_shears(beams_moment, span_length)
 
+    # Axial loads for beams are computed as the cumulative sum of beam shears
+    axial_loads = compute_seismic_axial_load(beams_shear)
+
     # Return the computed moments and shears as a RegularSpanFrameSollicitations instance
     return RegularSpanFrameSollicitations(
         beams_moment=beams_moment,
         columns_moment=columns_moment,
         beams_shear=beams_shear,
-        columns_shear=columns_shear
+        columns_shear=columns_shear,
+        axial_loads=axial_loads
     )

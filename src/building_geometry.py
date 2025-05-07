@@ -13,7 +13,7 @@ class BuildingGeometry:
     floor_height: float
     n_main_spans: int
     n_cross_spans: int
-    is_fully_braced: bool = False # If false then only perimeter frames are alogn cross direction
+    is_fully_braced: bool = False # If false then only perimeter frames are along cross direction
 
     @property
     def bay_area(self) -> float:

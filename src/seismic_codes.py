@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Callable, Dict, List, Optional, Sequence
+from typing import Callable, Optional, Sequence
 
 
 class BuildingCode(Enum):
@@ -23,7 +23,7 @@ class SeismicCat(Enum):
 class SeismicForces:
     def __init__(self):
         # Map building codes to force calculation methods that do not use the heights as a param
-        self.forces_methods: Dict[BuildingCode, Callable[[Sequence[float], SeismicCat], List[float]]] = {
+        self.forces_methods: dict[BuildingCode, Callable[[Sequence[float], SeismicCat], list[float]]] = {
             BuildingCode.RDL_573: self._RDL_573_forces,
             BuildingCode.RDL_431: self._RDL_431_forces,
             BuildingCode.RDL_640: self._RDL_640_forces,
@@ -32,7 +32,7 @@ class SeismicForces:
         }
 
         # Map building codes to force calculation methods that use the heights as a param
-        self.forces_methods_with_height: Dict[BuildingCode, Callable[[Sequence[float], Sequence[float], SeismicCat], List[float]]] = {
+        self.forces_methods_with_height: dict[BuildingCode, Callable[[Sequence[float], Sequence[float], SeismicCat], list[float]]] = {
             BuildingCode.DM_40_75: self._DM_40_75_forces,
             BuildingCode.DM_515_81: self._DM_40_75_forces,  # No change in formulation
             BuildingCode.DM_1984: self._DM_1984_forces,
@@ -43,9 +43,9 @@ class SeismicForces:
         self,
         building_code: BuildingCode,
         weights: Sequence[float],
-        seismic_cat: Optional[SeismicCat] = SeismicCat.CatI,
-        floor_heights: Optional[Sequence[float]] = None
-    ) -> List[float]:
+        seismic_cat: SeismicCat = SeismicCat.CatI,
+        floor_heights: Sequence[float] | None= None
+    ) -> list[float]:
         """
         Compute the seismic forces based on the building code and category.
 
@@ -71,7 +71,7 @@ class SeismicForces:
             raise ValueError(f"Building code {building_code} is not supported.")
 
     @staticmethod
-    def _RDL_573_forces(weights: Sequence[float], seismic_cat: Optional[SeismicCat] = None) -> List[float]:
+    def _RDL_573_forces(weights: Sequence[float], seismic_cat: Optional[SeismicCat] = None) -> list[float]:
         """
         Calculate forces for RDL 573 building code.
         """
@@ -84,7 +84,7 @@ class SeismicForces:
 
         return [c * w for c, w in zip(forces_coeff, weights)]
 
-    def _RDL_431_forces(self, weights: Sequence[float], seismic_cat: SeismicCat) -> List[float]:
+    def _RDL_431_forces(self, weights: Sequence[float], seismic_cat: SeismicCat) -> list[float]:
         """
         Calculate forces for RDL 431 building code.
         """
@@ -102,11 +102,11 @@ class SeismicForces:
         return self._RDL_573_forces(weights)
 
     @staticmethod
-    def _RDL_640_forces(weights: Sequence[float], category: SeismicCat) -> List[float]:
+    def _RDL_640_forces(weights: Sequence[float], category: SeismicCat) -> list[float]:
         """
         Calculate forces for RDL 640 building code with amplification coefficients.
         """
-        seismic_acc: Dict[SeismicCat, float] = {
+        seismic_acc: dict[SeismicCat, float] = {
             SeismicCat.CatI: 0.1,
             SeismicCat.CatII: 0.07,
             SeismicCat.CatIII: 0  # No CatIII in this building code
@@ -119,14 +119,14 @@ class SeismicForces:
         floor_heights: Sequence[float],
         category: SeismicCat,
         amp_coeff: Optional[float] = None
-    ) -> List[float]:
+    ) -> list[float]:
         """
         Calculate forces for DM 40 75 building code.
         """
         if amp_coeff is None:
             # Assuming residential (beta = 1), No dynamic analysis (T0 unknown -> R = 1)
             # Assuming normal soil (epsilon = 1)
-            seismic_acc: Dict[SeismicCat, float] = {
+            seismic_acc: dict[SeismicCat, float] = {
                 SeismicCat.CatI: 0.1,
                 SeismicCat.CatII: 0.07,
                 SeismicCat.CatIII: 0  # No CatIII in this building code
@@ -139,7 +139,7 @@ class SeismicForces:
 
         return [w * g * amp_coeff for w, g in zip(weights, gamma)]
 
-    def _DM_1984_forces(self, weights: Sequence[float], floor_heights: Sequence[float], category: SeismicCat) -> List[float]:
+    def _DM_1984_forces(self, weights: Sequence[float], floor_heights: Sequence[float], category: SeismicCat) -> list[float]:
         """
         Calculate forces for DM 1984 building code.
         """
@@ -161,7 +161,7 @@ class SeismicWeight:
     calculating the seismic weight, and the appropriate method is selected
     based on the provided building code.
     Attributes:
-        weight_methods (Dict[BuildingCode, Callable[..., float]]):
+        weight_methods (dict[BuildingCode, Callable[..., float]]):
             A mapping of building codes to their respective weight calculation methods.
     Methods:
         compute_weight(building_code: BuildingCode, G: float, Q: float, seismic_cat: Optional[SeismicCat] = None) -> float:
@@ -170,7 +170,7 @@ class SeismicWeight:
     """
     def __init__(self):
         # Map building codes to weight calculation methods
-        self.weight_methods: Dict[BuildingCode, Callable[..., float]] = {
+        self.weight_methods: dict[BuildingCode, Callable[..., float]] = {
             BuildingCode.RDL_573: self._RDL_573_weights,
             BuildingCode.RDL_431: self._RDL_431_weights,
             BuildingCode.RDL_640: self._RDL_640_weights,
@@ -231,7 +231,7 @@ class SeismicWeight:
         """
         Calculate weights for RDL 640 building code with amplification coefficients.
         """
-        ampl_coefficient: Dict[SeismicCat, float] = {
+        ampl_coefficient: dict[SeismicCat, float] = {
             SeismicCat.CatI: 1.4,
             SeismicCat.CatII: 1.25,
             SeismicCat.CatIII: 0  # No CatIII in this building code
@@ -253,7 +253,7 @@ class SeismicWeight:
         return (1/3 * Q + G)
 
     @staticmethod
-    def _raise_not_implemented(*args) -> None:
+    def _raise_not_implemented(*args) -> float:
         """
         Raise NotImplementedError for unsupported methods.
         """

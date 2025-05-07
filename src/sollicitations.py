@@ -13,9 +13,9 @@ class MemberSollicitation:
     :ivar N:
         The axial force on the member.
     """
-    M: float
-    V: float
-    N: float
+    M: float = 0.0
+    V: float = 0.0
+    N: float = 0.0
 
     def __add__(self, other):
         """
