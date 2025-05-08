@@ -1,7 +1,8 @@
 import unittest
 from unittest.mock import MagicMock
 
-from src.structure_loads import (SeismicLoadDesign, compute_beam_moment_end,
+from src.structure_loads import (GravityLoadDesignFullSpan, SeismicLoadDesign,
+                                 compute_beam_moment_end,
                                  compute_beam_shear_end, compute_total_load)
 
 
@@ -124,4 +125,77 @@ class TestSeismicLoadDesign(unittest.TestCase):
         self.assertListAlmostEqual(cross_frame_forces, expected_cross_frame_forces, 1)
 
 
-# TODO TEST GRAVITY LOADS
+class TestGravityLoadDesignFullSpan(unittest.TestCase):
+
+    def setUp(self):
+        # Basic mock building geometry
+        self.bg = MagicMock()
+        self.bg.floors = 3
+        self.bg.span_main = 6.0
+        self.bg.span_cross = 5.0
+        self.bg.floor_height = 3.0
+
+        # Create an instance with example loads
+        self.design = GravityLoadDesignFullSpan(
+            floaring_load=2.0,
+            overload=1.0,
+            roof_overload=0.5,
+            infill_load=0.8,
+            beam_load=1.2,
+            column_load=1.5
+        )
+
+    def assertListAlmostEqual(self, list1, list2, places=7):
+        # Assert that the computed axial loads match the expected values
+        for v, e in zip(list1, list2):
+            self.assertAlmostEqual(v, e, 1)
+
+    def test_get_beam_loads(self):
+        # Compute the beam loads
+        floor_loads, roof_loads = self.design._get_beam_loads(self.bg)
+
+        # Expected values based on the mock geometry and loads
+        expected_floor_loads = [
+            (9.5, 6.),
+            (2., 5.),
+            (16.2, 6.),
+            (1.2, 5)
+        ]
+        expected_roof_loads = [
+            (7.45, 6.),
+            (1.2, 5.),
+            (13.7, 6.),
+            (1.2, 5)
+        ]
+
+        # Compare the computed values with expected values
+        for (p, ll), (ep, el) in zip(floor_loads, expected_floor_loads):
+            self.assertAlmostEqual(p, ep, 2)
+            self.assertAlmostEqual(ll, el, 2)
+
+        for (p, ll), (ep, el) in zip(roof_loads, expected_roof_loads):
+            self.assertAlmostEqual(p, ep, 2)
+            self.assertAlmostEqual(ll, el, 2)
+
+    def test_get_column_loads(self):
+        # Compute the column loads
+        roof_cols, floor_cols = self.design._get_column_loads(self.bg)
+
+        # Expected values based on the mock geometry and loads
+        expectd_roof_cols = [
+            92.7,
+            52.2,
+            51.6,
+            29.88
+        ]
+
+        expected_floor_cols = [
+            107.7,
+            64.5,
+            63.1,
+            38
+        ]
+
+        # Compare the computed values with expected values
+        self.assertListAlmostEqual(roof_cols, expectd_roof_cols, 2)
+        self.assertListAlmostEqual(floor_cols, expected_floor_cols, 2)

@@ -261,147 +261,73 @@ class GravityLoadDesignFullSpan(StructureLoads):
     due to gravity loads over the full span of a building.
     """
 
-    def compute_beam_moments(self, building_geometry: BuildingGeometry) -> list[BeamSollicitations]:
-        """
-        Compute the moments and shears for beams in the building due to gravity loads.
-
-        :param building_geometry: Object that holds the building's geometrical information.
-        :return: A list of beam solicitations for each floor of the building.
-        """
-
-        floors = building_geometry.floors
-
-        # Calculate the total area load for floor and roof
-        floor_area_load = self.floaring_load + self.overload
-        roof_area_load = self.floaring_load + self.roof_overload
-
-        # Load from beams and infill walls
-        beam_load = self.beam_load
-        infill_load = self.infill_load
-
-        # Lengths of beams in the main and cross directions
-        beam_length_main = building_geometry.span_main
-        beam_length_cross = building_geometry.span_cross
-
-        # Influence areas for different beam positions
-        beams_area = [.5 * beam_length_cross, 0, beam_length_cross, 0]
-        beams_infill = [1, 1, 0, 0]
-        beams_length = [beam_length_main, beam_length_cross, beam_length_main, beam_length_cross]
-
-        # Compute distributed loads on beams for floor and roof
-        beams_floor_load = [
-            floor_area_load * area + infill_load * infill + beam_load
-            for area, infill in zip(beams_area, beams_infill)
-        ]
-        beams_roof_load = [
-            roof_area_load * area + beam_load
-            for area in beams_area
-        ]
-
-        # Compute moments and shears for floor and roof
-        beams_floor_moment = [
-            compute_beam_moment_end(load, length)
-            for load, length in zip(beams_floor_load, beams_length)
-        ]
-        beams_roof_moment = [
-            compute_beam_moment_end(load, length)
-            for load, length in zip(beams_roof_load, beams_length)
-        ]
-
-        beams_floor_shear = [
-            compute_beam_shear_end(load, length)
-            for load, length in zip(beams_floor_load, beams_length)
-        ]
-        beams_roof_shear = [
-            compute_beam_shear_end(load, length)
-            for load, length in zip(beams_roof_load, beams_length)
-        ]
-
-        # Assemble beam solicitations
-        beam_sollicitations_floor = [
-            MemberSollicitation(M=moment, V=shear)
-            for moment, shear in zip(beams_floor_moment, beams_floor_shear)
-        ]
-        beam_sollicitations_roof = [
-            MemberSollicitation(M=moment, V=shear)
-            for moment, shear in zip(beams_roof_moment, beams_roof_shear)
-        ]
-
-        # Collect results for each floor and the roof
-        beams_sollicitation = [beam_sollicitations_floor] * (floors - 1) + [beam_sollicitations_roof]
-
-        return [BeamSollicitations(*beams) for beams in beams_sollicitation]
-
-
-    def compute_column_axials(self, building_geometry: BuildingGeometry) -> list[ColumnSollicitations]:
-        """
-        Compute the axial forces for columns in the building due to gravity loads.
-
-        :param building_geometry: Object that holds the building's geometrical information.
-        :return: A list of column solicitations for each floor of the building.
-        """
-
-        floors = building_geometry.floors
-
-        # Total area load on floors and roof
-        floor_area_load = self.floaring_load + self.overload
-        roof_area_load = self.floaring_load + self.roof_overload
-
-        # Axial load from columns
-        column_load = self.column_load * building_geometry.floor_height
-
-        # Beam lengths
-        beam_length_main = building_geometry.span_main
-        beam_length_cross = building_geometry.span_cross
-
-        # Influence area of different column types
-        area = beam_length_main * beam_length_cross
-        columns_area = [area, .5 * area, .5 * area, .25 * area]
-
-        # Infill and beam lengths for columns
-        columns_infill_length = [0, beam_length_main, beam_length_cross, .5 * (beam_length_main + beam_length_cross)]
-        columns_beam_length = [beam_length_main + beam_length_cross, beam_length_main + .5 * beam_length_cross,
-                       .5 * beam_length_main + beam_length_cross, .5 * (beam_length_main + beam_length_cross)]
-
-        # Axial forces for floors and roof
-        columns_floor_axial = [
-            a * floor_area_load + b * self.beam_load + c * self.infill_load + column_load
-            for a, b, c in zip(columns_area, columns_beam_length, columns_infill_length)
-        ]
-        columns_roof_axial = [
-            a * roof_area_load + b * self.beam_load + column_load
-            for a, b in zip(columns_area, columns_beam_length)
-        ]
-
-        # Convert to member solicitations
-        column_sollicitations_roof = [
-            MemberSollicitation(N=axial) for axial in columns_roof_axial
-        ]
-        column_sollicitations_floor = [
-            MemberSollicitation(N=axial) for axial in columns_floor_axial
-        ]
-
-        # Collect axial forces across floors
-        columns_axial = [np.array(column_sollicitations_floor)] * (floors - 1) + [np.array(column_sollicitations_roof)]
-
-        # Sum axial forces from top to bottom for each floor
-        columns_total_axial = [sum(columns_axial[i:], np.array(MemberSollicitation())) for i in range(len(columns_axial))]
-
-        return [ColumnSollicitations(*columns) for columns in columns_total_axial]
-
-
     def compute_gravity_loads(self, building_geometry: BuildingGeometry) -> BuildingSollicitations:
         """
         Compute the gravity loads for the entire building, including both beam and column solicitations.
-
-        :param building_geometry: Object that holds the building's geometrical information.
-        :return: A structure containing the solicitations for all beams and columns.
         """
+        columns = self.compute_column_axials(building_geometry)
+        beams = self.compute_beam_moments(building_geometry)
+        return BuildingSollicitations(beams_sollicitations=beams, columns_sollicitations=columns)
 
-        columns_sollicitations = self.compute_column_axials(building_geometry)
-        beams_sollicitations = self.compute_beam_moments(building_geometry)
-        # Assemble the floors
-        return BuildingSollicitations(
-            beams_sollicitations=beams_sollicitations,
-            columns_sollicitations=columns_sollicitations
-        )
+    def compute_beam_moments(self, building_geometry: BuildingGeometry) -> list[BeamSollicitations]:
+        floors = building_geometry.floors
+        loads_floor, loads_roof = self._get_beam_loads(building_geometry)
+
+        floor_moments = [compute_beam_moment_end(q, L) for q, L in loads_floor]
+        roof_moments = [compute_beam_moment_end(q, L) for q, L in loads_roof]
+        floor_shears = [compute_beam_shear_end(q, L) for q, L in loads_floor]
+        roof_shears = [compute_beam_shear_end(q, L) for q, L in loads_roof]
+
+        solicitations_floor = [MemberSollicitation(M=m, V=v) for m, v in zip(floor_moments, floor_shears)]
+        solicitations_roof = [MemberSollicitation(M=m, V=v) for m, v in zip(roof_moments, roof_shears)]
+
+        all_solicitations = [solicitations_floor] * (floors - 1) + [solicitations_roof]
+        return [BeamSollicitations(*floor) for floor in all_solicitations]
+
+    def compute_column_axials(self, building_geometry: BuildingGeometry) -> list[ColumnSollicitations]:
+        floors = building_geometry.floors
+        roof, floor = self._get_column_loads(building_geometry)
+
+        solicitations_roof = [MemberSollicitation(N=load) for load in roof]
+        solicitations_floor = [MemberSollicitation(N=load) for load in floor]
+
+        combined = [np.array(solicitations_floor)] * (floors - 1) + [np.array(solicitations_roof)]
+        total = [sum(combined[i:], np.array(MemberSollicitation())) for i in range(floors)]
+
+        return [ColumnSollicitations(*floor) for floor in total]
+
+    def _get_beam_loads(self, bg: BuildingGeometry) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
+        floor_load = self.floaring_load + self.overload
+        roof_load = self.floaring_load + self.roof_overload
+        Lx, Ly = bg.span_main, bg.span_cross
+
+        beams_area = [.5 * Ly, 0, Ly, 0]
+        beams_infill = [1, 1, 0, 0]
+        beams_length = [Lx, Ly, Lx, Ly]
+
+        floor_loads = [
+            (floor_load * A + self.infill_load * F + self.beam_load, L)
+            for A, F, L in zip(beams_area, beams_infill, beams_length)
+        ]
+        roof_loads = [
+            (roof_load * A + self.beam_load, L)
+            for A, L in zip(beams_area, beams_length)
+        ]
+        return floor_loads, roof_loads
+
+    def _get_column_loads(self, bg: BuildingGeometry) -> tuple[list[float], list[float]]:
+        floor_area = self.floaring_load + self.overload
+        roof_area = self.floaring_load + self.roof_overload
+        h = bg.floor_height
+        Lx, Ly = bg.span_main, bg.span_cross
+        A = Lx * Ly
+
+        column_load = self.column_load * h
+        area_factors = np.array([A, 0.5 * A, 0.5 * A, 0.25 * A])
+        beam_lengths = np.array([Lx + Ly, Lx + 0.5 * Ly, 0.5 * Lx + Ly, 0.5 * (Lx + Ly)])
+        infill_lengths = np.array([0, Lx, Ly, 0.5 * (Lx + Ly)])
+
+        floor = area_factors * floor_area + beam_lengths * self.beam_load + infill_lengths * self.infill_load + column_load
+        roof = area_factors * roof_area + beam_lengths * self.beam_load + column_load
+        # Return tolist to convert numpy arrays to lists
+        return roof.tolist(), floor.tolist()
