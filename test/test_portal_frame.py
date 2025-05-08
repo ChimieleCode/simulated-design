@@ -9,6 +9,11 @@ from src.portal_frame_method import (compute_beam_moments, compute_beam_shears,
 
 class TestStructuralCalculations(unittest.TestCase):
 
+    def assertListAlmostEqual(self, list1, list2, places=7):
+        # Assert that the computed axial loads match the expected values
+        for v, e in zip(list1, list2):
+            self.assertAlmostEqual(v, e, 1)
+
     def test_compute_floors_shear(self):
         force_pattern = [100, 200]
         floor_shear = compute_floors_shear(force_pattern)
@@ -29,8 +34,7 @@ class TestStructuralCalculations(unittest.TestCase):
         expected_column_shear = [150, 100]
 
         # Assert that the computed shear forces match the expected values
-        for v, e in zip(column_shear, expected_column_shear):
-            self.assertAlmostEqual(v, e, 1)
+        self.assertListAlmostEqual(column_shear, expected_column_shear)
 
     def comute_column_moments(self):
         column_shear = [150, 100]
@@ -41,8 +45,7 @@ class TestStructuralCalculations(unittest.TestCase):
         expected_column_moments = [100, 66.7]
 
         # Assert that the computed moments match the expected values
-        for v, e in zip(column_moments, expected_column_moments):
-            self.assertAlmostEqual(v, e, 1)
+        self.assertListAlmostEqual(column_moments, expected_column_moments)
 
     def test_compute_beam_moments(self):
         column_moments = [100, 66.7]
@@ -52,8 +55,7 @@ class TestStructuralCalculations(unittest.TestCase):
         expected_beam_moments = [83.35, 33.35]
 
         # Assert that the computed moments match the expected values
-        for v, e in zip(beam_moments, expected_beam_moments):
-            self.assertAlmostEqual(v, e, 1)
+        self.assertListAlmostEqual(beam_moments, expected_beam_moments)
 
     def test_compute_beam_shears(self):
         beam_moments = [83.35, 33.35]
@@ -64,8 +66,7 @@ class TestStructuralCalculations(unittest.TestCase):
         expected_beam_shear = [33.34, 13.34]
 
         # Assert that the computed shears match the expected values
-        for v, e in zip(beam_shear, expected_beam_shear):
-            self.assertAlmostEqual(v, e, 1)
+        self.assertListAlmostEqual(beam_shear, expected_beam_shear)
 
 
     def test_column_axial(self):
@@ -76,5 +77,4 @@ class TestStructuralCalculations(unittest.TestCase):
         expected_axial = [46.68, 13.34]
 
         # Assert that the computed axial loads match the expected values
-        for v, e in zip(axial_load, expected_axial):
-            self.assertAlmostEqual(v, e, 1)
+        self.assertListAlmostEqual(axial_load, expected_axial)

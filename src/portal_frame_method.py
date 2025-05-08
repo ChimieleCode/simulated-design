@@ -6,13 +6,6 @@ import numpy as np
 from src.sollicitations import MemberSollicitation
 
 
-@dataclass
-class RegularSpanFrame:
-    span_length: float
-    n_spans: int
-    heights: list[float]
-
-
 def compute_floors_shear(forces: Sequence[float]) -> list[float]:
     """
     Computes the shear forces for each floor based on the provided forces.
