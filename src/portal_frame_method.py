@@ -3,6 +3,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from src.sollicitations import MemberSollicitation
+
 
 @dataclass
 class RegularSpanFrame:
@@ -243,7 +245,7 @@ class RegularSpanFrameMoments:
         except IndexError:
             return None
 
-    def get_internal_columns_moment(self, floor: int) -> float | None:
+    def get_internal_column_moment(self, floor: int) -> float | None:
         """
         Retrieves the moment for an internal column at a specified floor.
 
@@ -258,7 +260,7 @@ class RegularSpanFrameMoments:
         except IndexError:
             return None
 
-    def get_external_columns_moment(self, floor: int) -> float | None:
+    def get_external_column_moment(self, floor: int) -> float | None:
         """
         Retrieves the moment for an external column at a specified floor, halved.
 
@@ -287,7 +289,7 @@ class RegularSpanFrameShears:
     beams_shear: list[float]
     columns_shear: list[float]
 
-    def get_beams_shear(self, floor: int) -> float | None:
+    def get_beam_shear(self, floor: int) -> float | None:
         """
         Retrieves the shear force for a beam at a specified floor.
 
@@ -302,7 +304,7 @@ class RegularSpanFrameShears:
         except IndexError:
             return None
 
-    def get_internal_columns_shear(self, floor: int) -> float | None:
+    def get_internal_column_shear(self, floor: int) -> float | None:
         """
         Retrieves the shear force for an internal column at a specified floor.
 
@@ -317,7 +319,7 @@ class RegularSpanFrameShears:
         except IndexError:
             return None
 
-    def get_external_columns_shear(self, floor: int) -> float | None:
+    def get_external_column_shear(self, floor: int) -> float | None:
         """
         Retrieves the shear force for an external column at a specified floor, halved.
 
@@ -331,7 +333,6 @@ class RegularSpanFrameShears:
             return self.columns_shear[floor] / 2
         except IndexError:
             return None
-
 
 @dataclass
 class RegularSpanFrameSollicitations(
@@ -368,6 +369,8 @@ class RegularSpanFrameSollicitations(
             A list of shear forces for beams.
         :param columns_shear:
             A list of shear forces for columns.
+        :param axial_loads:
+            A list of axial loads for beams.
         """
         RegularSpanFrameMoments.__init__(self, beams_moment, columns_moment)
         RegularSpanFrameShears.__init__(self, beams_shear, columns_shear)
@@ -390,8 +393,96 @@ class RegularSpanFrameSollicitations(
             axial = self.axial_loads[floor]
             if not is_downwind:
                 return axial * -1
+            return axial
         except IndexError:
             return None
+
+    def get_internal_column_sollicitations(self, floor: int) -> MemberSollicitation:
+        """
+        Retrieves the internal column solicitations for a specified floor.
+
+        :param floor:
+            The index of the floor for which the internal column solicitations are requested.
+
+        :return:
+            A `MemberSollicitation` object containing the internal column moment and shear
+            at the specified floor.
+        """
+        moment = self.get_internal_column_moment(floor)
+        shear = self.get_internal_column_shear(floor)
+
+        if moment is None or shear is None:
+            raise ValueError(f"Invalid floor index: {floor}.")
+
+        return MemberSollicitation(
+            M=moment,
+            V=shear
+        )
+
+    def get_external_column_sollicitations(self,
+                                           floor: int,
+                                           include_axial: bool = False,
+                                           is_downwind: bool = True) -> MemberSollicitation:
+        """
+        Retrieves the solicitations for an external column at a specified floor.
+
+        :param floor:
+            The index of the floor for which the external column solicitations are requested.
+
+        :param include_axial:
+            A boolean indicating whether to include the axial load in the solicitations.
+            Defaults to False.
+
+        :param is_downwind:
+            A boolean indicating whether the axial load is downwind or not.
+            Defaults to True.
+
+        :raises ValueError:
+            If the floor index is invalid or the required data is missing.
+
+        :return:
+            A `MemberSollicitation` object containing the moment, shear, and optionally
+            the axial load for the external column at the specified floor.
+        """
+        moment = self.get_external_column_moment(floor)
+        shear = self.get_external_column_shear(floor)
+        axial = 0.
+        if include_axial:
+            axial = self.get_axial_loads(floor, is_downwind)
+
+        if (moment is None) or (shear is None) or (axial is None):
+            raise ValueError(f"Invalid floor index: {floor}.")
+
+        return MemberSollicitation(
+            M=moment,
+            V=shear,
+            N=axial
+        )
+
+    def get_beam_sollicitations(self, floor: int) -> MemberSollicitation:
+        """
+        Retrieves the solicitations for a beam at a specified floor.
+
+        :param floor:
+            The index of the floor for which the beam solicitations are requested.
+
+        :raises ValueError:
+            If the floor index is invalid or the required data is missing.
+
+        :return:
+            A `MemberSollicitation` object containing the moment and shear for the beam
+            at the specified floor.
+        """
+        moment = self.get_beam_moment(floor)
+        shear = self.get_beam_shear(floor)
+
+        if (moment is None) or (shear is None):
+            raise ValueError(f"Invalid floor index: {floor}.")
+
+        return MemberSollicitation(
+            M=moment,
+            V=shear
+        )
 
 
 def get_portal_frame_method_sollicitations(
@@ -404,17 +495,17 @@ def get_portal_frame_method_sollicitations(
     using the portal frame method.
 
     :param forces:
-    A sequence of forces applied at each floor, ordered from the top floor to the bottom floor.
+        A sequence of forces applied at each floor, ordered from the top floor to the bottom floor.
     :param heights:
-    A sequence of heights for each floor, where each element represents the height of a column.
+        A sequence of heights for each floor, where each element represents the height of a column.
     :param span_length:
-    The length of the span of the beams.
+        The length of the span of the beams.
     :param column_count:
-    The number of columns per floor. Must be greater than one.
+        The number of columns per floor. Must be greater than one.
 
     :return:
-    An instance of `RegularSpanFrameSollicitations` containing the computed moments and shears
-    for beams and columns.
+        An instance of `RegularSpanFrameSollicitations` containing the computed moments and shears
+        for beams and columns.
     """
     # Compute the shear forces for each floor
     floor_shears = compute_floors_shear(forces)

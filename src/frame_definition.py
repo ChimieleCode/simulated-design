@@ -6,8 +6,9 @@ from src.building_geometry import BuildingGeometry
 
 @dataclass
 class BuildingBox:
-    h: float
-    b: float
+    length: float
+    width: float
+    height: float
     floors: int
 
 
@@ -51,14 +52,14 @@ class BuildingGeometryFactory:
         :return: BuildingGeometry object.
         """
         # Computes n_spans
-        n_main_spans = self._main_spans(bbox.b)
-        n_cross_spans = self._cross_spans(bbox.h)
+        n_main_spans = self._main_spans(bbox.length)
+        n_cross_spans = self._cross_spans(bbox.width)
 
         # Creates and returns the BuildingGeometry object
         return BuildingGeometry(
             floors=bbox.floors,
-            span_main=bbox.b/n_main_spans,
-            span_cross=bbox.h/n_cross_spans,
+            span_main=round(bbox.length/n_main_spans, 2),
+            span_cross=round(bbox.width/n_cross_spans, 2),
             floor_height=self.floor_height,
             n_main_spans=n_main_spans,
             n_cross_spans=n_cross_spans,

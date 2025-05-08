@@ -15,9 +15,9 @@ class BuildingCode(Enum):
 
 
 class SeismicCat(Enum):
-    CatI = 'Category I'
-    CatII = 'Category II'
-    CatIII = 'Category III'
+    CatI = 'I'
+    CatII = 'II'
+    CatIII = 'III'
 
 
 class SeismicForces:
