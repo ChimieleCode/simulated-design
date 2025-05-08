@@ -84,7 +84,10 @@ class SeismicLoadDesign(StructureLoads):
         permanent_weight_roof, overloads_roof = self._compute_roof_weights(building_geometry)
 
         seismic_weight_floor, seismic_weight_roof = self._compute_seismic_weights(
-            permanent_weight_floor, overloads_floor, permanent_weight_roof, overloads_roof, building_geometry
+            permanent_weight_floor,
+            overloads_floor,
+            permanent_weight_roof,
+            overloads_roof
         )
 
         seismic_forces = self._compute_seismic_forces(seismic_weight_floor, seismic_weight_roof, building_geometry)
@@ -130,7 +133,11 @@ class SeismicLoadDesign(StructureLoads):
         )
         return permanent_weight_roof, overloads_roof
 
-    def _compute_seismic_weights(self, permanent_weight_floor, overloads_floor, permanent_weight_roof, overloads_roof, building_geometry: BuildingGeometry) -> tuple[float, float]:
+    def _compute_seismic_weights(self,
+                                 permanent_weight_floor: float,
+                                 overloads_floor: float,
+                                 permanent_weight_roof: float,
+                                 overloads_roof: float) -> tuple[float, float]:
         """Computes the seismic weights for both the floors and roof."""
         seismic_forces_factory = SeismicWeight()
         seismic_weight_floor = seismic_forces_factory.compute_weight(
@@ -149,7 +156,10 @@ class SeismicLoadDesign(StructureLoads):
 
         return seismic_weight_floor, seismic_weight_roof
 
-    def _compute_seismic_forces(self, seismic_weight_floor, seismic_weight_roof, building_geometry: BuildingGeometry) -> list[float]:
+    def _compute_seismic_forces(self,
+                                seismic_weight_floor: float,
+                                seismic_weight_roof: float,
+                                building_geometry: BuildingGeometry) -> list[float]:
         """Computes the seismic forces based on seismic weight distribution."""
         seismic_weights = [seismic_weight_floor] * (building_geometry.floors - 1) + [seismic_weight_roof]
         seismic_forces = SeismicForces().compute_forces(
@@ -160,13 +170,17 @@ class SeismicLoadDesign(StructureLoads):
         )
         return seismic_forces
 
-    def _compute_frame_forces(self, seismic_forces: list[float], building_geometry: BuildingGeometry) -> tuple[list[float], list[float]]:
+    def _compute_frame_forces(self,
+                              seismic_forces: list[float],
+                              building_geometry: BuildingGeometry) -> tuple[list[float], list[float]]:
         """Computes the forces for both the main and cross frames."""
         main_frame_forces = [force / (building_geometry.n_cross_spans + 1) for force in seismic_forces]
         cross_frame_forces = [force / (building_geometry.n_main_spans + 1) for force in seismic_forces]
         return main_frame_forces, cross_frame_forces
 
-    def _compute_seismic_stresses(self, frame_forces: list[float], building_geometry: BuildingGeometry, is_main: bool) -> RegularSpanFrameSollicitations:
+    def _compute_seismic_stresses(self,
+                                  frame_forces: list[float],
+                                  building_geometry: BuildingGeometry, is_main: bool) -> RegularSpanFrameSollicitations:
         """Computes the seismic stresses using the portal frame method."""
         span_length = building_geometry.span_main if is_main else building_geometry.span_cross
         column_count = building_geometry.n_main_spans + 1 if is_main else building_geometry.n_cross_spans + 1
