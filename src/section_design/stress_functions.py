@@ -1,11 +1,11 @@
+from collections.abc import Iterable, Sequence
+
 import numpy as np
 
 
-def compute_neutral_axis_ratio(
-        sigma_cls_adm: float,
-        sigma_s_adm: float,
-        n: int = 15
-) -> float:
+def compute_neutral_axis_ratio(sigma_cls_adm: float,
+                               sigma_s_adm: float,
+                               n: int = 15) -> float:
     """
     Computes the neutral axis ratio for a rectangular beam section.
 
@@ -26,10 +26,8 @@ def compute_neutral_axis_ratio(
     return sigma_cls_adm / (sigma_cls_adm + sigma_s_adm/n)
 
 
-def compute_alpha_bottom_reinf(
-        k: float,
-        sigma_cls_adm: float
-) -> float:
+def compute_alpha_bottom_reinf(k: float,
+                               sigma_cls_adm: float) -> float:
     """
     Computes the alpha coefficient for bottom reinforcement in a rectangular beam section.
 
@@ -48,11 +46,9 @@ def compute_alpha_bottom_reinf(
     return np.sqrt(2 / (k * (1 - k/3) * sigma_cls_adm))
 
 
-def compute_beta_bottom_reinf(
-    alpha: float,
-    k: float,
-    sigma_s_adm: float
-) -> float:
+def compute_beta_bottom_reinf(alpha: float,
+                              k: float,
+                              sigma_s_adm: float) -> float:
     """
     Computes the beta coefficient for bottom reinforcement in a rectangular beam section.
 
@@ -73,7 +69,9 @@ def compute_beta_bottom_reinf(
     return (sigma_s_adm * alpha * (1 - k/3))**-1
 
 
-def compute_maximum_concrete_stress(N: float, Sx: float, y: float) -> float:
+def compute_maximum_concrete_stress(N: float,
+                                    Sx: float,
+                                    y: float) -> float:
     """
     Compute the maximum stress in concrete.
 
@@ -88,7 +86,11 @@ def compute_maximum_concrete_stress(N: float, Sx: float, y: float) -> float:
     return N / Sx * y
 
 
-def compute_maximum_steel_stress(N: float, Sx: float, y: float, n: float, d: float) -> float:
+def compute_maximum_steel_stress(N: float,
+                                 Sx: float,
+                                 y: float,
+                                 n: float,
+                                 d: float) -> float:
     """
     Compute the maximum stress in steel reinforcement.
 
@@ -106,7 +108,11 @@ def compute_maximum_steel_stress(N: float, Sx: float, y: float, n: float, d: flo
     return n * N / Sx * (d - y)
 
 
-def compute_static_moment(b, y, n, As_s, d_s):
+def compute_static_moment(b: float,
+                          y: float,
+                          n: float,
+                          As_s: Iterable[float],
+                          d_s: Iterable[float]) -> float:
     """
     Computes the static moment for the section.
 
@@ -119,18 +125,16 @@ def compute_static_moment(b, y, n, As_s, d_s):
     :return: Static moment value.
     """
     # Calculate the static moment
-    Sx = (b * y ** 2 / 2) + n * sum(As * (d - y) for As, d in zip(As_s, d_s))
+    Sx = (b * y ** 2 / 2) + n * sum(As * (y - d) for As, d in zip(As_s, d_s))
     return Sx
 
 
 # Function to compute the neutral axis
-def compute_neutral_axis(
-    n,
-    b,
-    u,
-    As_s,
-    d_s
-) -> float:
+def compute_neutral_axis(n: float,
+                         b: float,
+                         u: float,
+                         As_s: Sequence[float],
+                         d_s: Sequence[float]) -> float:
     """
     Computes the neutral axis for a given beam section using a cubic polynomial.
 
@@ -202,4 +206,4 @@ def compute_neutral_axis(
     # Keep only positive roots
     root = roots[roots > 0]
     # Just one root should be positive
-    return root[0]
+    return float(root[0])

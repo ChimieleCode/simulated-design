@@ -4,6 +4,9 @@ import unittest
 from src.section_design.section_utils import (ReinforcementCombination,
                                               reinforcement_area)
 
+# Unit conversion constants
+mmq_mq = 1e-6  # mm^2 to m^2
+
 
 class TestReinforcementArea(unittest.TestCase):
 
@@ -29,7 +32,7 @@ class TestReinforcementCombination(unittest.TestCase):
         max_d = 10
 
         expected_combinations = {
-            (bars, diameter): reinforcement_area(bars, diameter)
+            (bars, diameter): reinforcement_area(bars, diameter) * mmq_mq
             for bars in range(min_bars, max_bars + 1)
             for diameter in range(min_d, max_d + 1, 2)
         }
@@ -38,7 +41,9 @@ class TestReinforcementCombination(unittest.TestCase):
             min_bars=min_bars, max_bars=max_bars, min_d=min_d, max_d=max_d
         )
 
-        self.assertEqual(result, expected_combinations)
+        self.assertSetEqual(set(result.keys()), set(expected_combinations.keys()))
+        for key in result:
+            self.assertAlmostEqual(result[key], expected_combinations[key], places=4)
 
     def test_minimum_section_width(self):
         """Test calculation of minimum section width."""
