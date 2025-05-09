@@ -1,7 +1,9 @@
 from dataclasses import dataclass
 
 from src.section_design.section_utils import reinforcement_area
-from src.units_conversion import mmq_mq
+
+# Unit conversion constants
+mmq_mq = 1e-6  # mm^2 to m^2
 
 
 def compute_transversal_reinf_pitch(

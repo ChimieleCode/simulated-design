@@ -10,7 +10,9 @@ from src.section_design.stress_functions import (
     compute_maximum_concrete_stress, compute_maximum_steel_stress,
     compute_neutral_axis, compute_static_moment)
 from src.sollicitations import MemberSollicitation
-from src.units_conversion import mmq_mq
+
+# Unit conversion constants
+mmq_mq = 1e-6  # mm^2 to m^2
 
 
 class ColumnSectionDesign:

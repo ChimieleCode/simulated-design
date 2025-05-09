@@ -3,7 +3,11 @@ from copy import copy
 from dataclasses import dataclass, field
 from itertools import product
 
-from src.utils import circle_area, find_first_greater_sorted
+from src.utils import find_first_greater_sorted
+
+# Unit conversion constants
+mm_m = 1e-3  # mm to m
+mmq_mq = 1e-6  # mm^2 to m^2
 
 
 def reinforcement_area(count: int, diameter: float) -> float:
@@ -14,7 +18,7 @@ def reinforcement_area(count: int, diameter: float) -> float:
     :param diameter: Diameter of the steel bars (in mm).
     :return: Total area of the steel reinforcement (in mm^2).
     """
-    return count * (math.pi * (diameter) ** 2) / 4
+    return count * math.pi * (diameter) ** 2 / 4
 
 
 @dataclass
@@ -28,7 +32,12 @@ class ReinforcementCombination:
     sorted_combinations: list[tuple[int, int]] = field(init=False)
 
     def __post_init__(self):
-        self.available_combinations = self.generate_reinforcements(min_d=12)
+        self.available_combinations = self._generate_reinforcements(
+            min_bars=self.min_count,
+            max_bars=self.max_count,
+            min_d=self.min_diameter,
+            max_d=self.max_diameter
+        )
         # trust me this works
         self.sorted_combinations = sorted(
             self.available_combinations,
@@ -36,11 +45,11 @@ class ReinforcementCombination:
         )
 
     @staticmethod
-    def generate_reinforcements(
-        min_bars: int = 2,
-        max_bars: int = 12,
-        min_d: int = 6,
-        max_d: int = 30
+    def _generate_reinforcements(
+        min_bars: int,
+        max_bars: int,
+        min_d: int,
+        max_d: int
     ) -> dict[tuple[int, int], float]:
         """
         Generates a dictionary of reinforcement combinations based on the
@@ -62,7 +71,7 @@ class ReinforcementCombination:
         reinf_area = {}
 
         for num, diameter in product(n_bars, diameters):
-            reinf_area[(num, diameter)] = num * circle_area(diameter/2)
+            reinf_area[(num, diameter)] = reinforcement_area(num, diameter) * mmq_mq
 
         return reinf_area
 
@@ -103,8 +112,6 @@ class ReinforcementCombination:
 
             n_bars, diameter_mm = combination
 
-            # Constant to convert mm to m
-            mm_m = 1e-3
             min_section_width = self.minimum_section_width(n_bars, diameter_mm * mm_m, cover)
 
             if self.section_width >= min_section_width:

@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from src.building_geometry import BuildingGeometry
+from src.frame_definition import BuildingGeometry
 from src.portal_frame_method import (RegularSpanFrameSollicitations,
                                      get_portal_frame_method_sollicitations)
 from src.seismic_codes import (BuildingCode, SeismicCat, SeismicForces,

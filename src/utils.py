@@ -15,7 +15,6 @@ def circle_area(radius: float) -> float:
     return math.pi * radius ** 2
 
 
-
 def find_first_greater_sorted(sequence: Sequence[float], pivot: float) -> int | None:
     # Find the index where `pivot` would be inserted to maintain sorted order
     index = bisect.bisect_right(sequence, pivot)

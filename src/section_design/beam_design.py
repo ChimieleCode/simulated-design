@@ -11,8 +11,10 @@ from src.section_design.stress_functions import (compute_alpha_bottom_reinf,
                                                  compute_beta_bottom_reinf,
                                                  compute_neutral_axis_ratio)
 from src.sollicitations import MemberSollicitation
-from src.units_conversion import mmq_mq
 from src.utils import round_to_nearest
+
+# Unit conversion constants
+mmq_mq = 1e-6  # mm^2 to m^2
 
 
 def unconditioned_design_bottom_reinf(
