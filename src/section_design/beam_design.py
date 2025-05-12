@@ -14,7 +14,9 @@ from src.sollicitations import MemberSollicitation
 from src.utils import round_to_nearest
 
 # Unit conversion constants
-mmq_mq = 1e-6  # mm^2 to m^2
+mmq_mq = 1e-6   # mm^2 to m^2
+mq_cmq = 1e4    # m^2 to cm^2
+cmq_mq = 1e-4   # m^2 to cm^2
 
 
 def unconditioned_design_bottom_reinf(
@@ -63,11 +65,8 @@ class SkwBeamSectionDesign:
     moments using reinforced concrete design principles.
 
     :param section_geometry: Geometry of the beam section (height, width, and concrete cover).
-    :type section_geometry: SectionGeometry
     :param positive_design_sollicitations: Bending moment for the positive design case.
-    :type positive_design_sollicitations: MemberSollicitations
     :param negative_design_sollicitations: Bending moment for the negative design case.
-    :type negative_design_sollicitations: MemberSollicitations
     """
 
     def __init__(
@@ -81,7 +80,7 @@ class SkwBeamSectionDesign:
         self.__negative_design_sollicitations = negative_design_sollicitations
 
     @staticmethod
-    def compute_steel_stress(
+    def _compute_steel_stress(
         distance: float,
         neutral_axis: float,
         sigma_cls: float,
@@ -91,15 +90,10 @@ class SkwBeamSectionDesign:
         Computes the stress in the steel reinforcement based on its distance to the neutral axis.
 
         :param distance: Distance from the reinforcement to the neutral axis [m].
-        :type distance: float
         :param neutral_axis: Position of the neutral axis from the reference edge [m].
-        :type neutral_axis: float
         :param sigma_cls: Compressive stress at the top fiber of the concrete [kPa].
-        :type sigma_cls: float
         :param n: Modular ratio (Es/Ec), defaults to 15.
-        :type n: float, optional
         :return: Stress in the reinforcing steel [kPa].
-        :rtype: float
         """
         return n * sigma_cls * distance / neutral_axis
 
@@ -109,25 +103,17 @@ class SkwBeamSectionDesign:
         sigma_adm_steel: float,
         n: float = 15.,
         As_pred: float = 1e-4
-    ) -> tuple[float, float]:
+    ) -> tuple[float, float, bool]:
         """
         Computes the minimum required steel reinforcement area to resist positive and negative
         bending moments using nonlinear constrained optimization.
 
         :param sigma_adm_cls: Maximum allowable compressive stress in concrete [kPa].
-        :type sigma_adm_cls: float
         :param sigma_adm_steel: Maximum allowable tensile stress in steel [kPa].
-        :type sigma_adm_steel: float
         :param n: Modular ratio (Es/Ec), defaults to 15.
-        :type n: float, optional
         :param As_pred: Initial guess for steel area [m²], defaults to 1e-4.
-        :type As_pred: float, optional
         :return: Tuple containing minimum required steel area [m²] and the reinforcement ratio (top/bottom).
-        :rtype: Tuple[float, float]
         """
-        # Constants
-        cm_m = 10000  # Conversion from m² to cm²
-
         # Collect section geometry
         h = self.__section_geometry.h
         b = self.__section_geometry.b
@@ -142,80 +128,122 @@ class SkwBeamSectionDesign:
 
         # Objective function
         def obj_function(x) -> float:
-            As, As_ratio = x[0], x[1]
-            return As * (1 + As_ratio)
+            # Setup
+            As, As_ratio, *_ = x
+            # Obj is squared to improve convergence
+            return (As * (1 + As_ratio))**2
 
         # Constraints
         def moment_balance_top_reinforcement_constraint_pos(x) -> float:
+            # Setup
             As, _, y_pos, _, sigma_cls_pos, _ = x
-            As *= cm_m
-            sigma_s = self.compute_steel_stress(d - y_pos, y_pos, sigma_cls_pos, n)
+            As *= cmq_mq
+            sigma_cls_pos *= sigma_adm_cls
+            # Compute
+            sigma_s = self._compute_steel_stress(d - y_pos, y_pos, sigma_cls_pos, n)
             steel_contribution = As * sigma_s * d_d
             concrete_contribution = 0.5 * b * y_pos * sigma_cls_pos * (cop - y_pos / 3)
-            return steel_contribution + concrete_contribution - M_pos
+            # Return the difference between the contributions and the moment
+            moment_balance = (steel_contribution + concrete_contribution - M_pos)
+            return moment_balance / M_pos   # Normalized to  to improve convergence
 
         def moment_balance_bot_reinforcement_constraint_pos(x) -> float:
+            # Setup
             As, As_ratio, y_pos, _, sigma_cls_pos, _ = x
-            As *= cm_m
-            sigma_s = self.compute_steel_stress(y_pos - cop, y_pos, sigma_cls_pos, n)
+            As *= cmq_mq
+            sigma_cls_pos *= sigma_adm_cls
+            # Compute
+            sigma_s = self._compute_steel_stress(y_pos - cop, y_pos, sigma_cls_pos, n)
             steel_contribution = As * As_ratio * sigma_s * d_d
             concrete_contribution = 0.5 * b * y_pos * sigma_cls_pos * (d - y_pos / 3)
-            return steel_contribution + concrete_contribution - M_pos
+            # Return the difference between the contributions and the moment
+            moment_balance = steel_contribution + concrete_contribution - M_pos
+            return moment_balance / M_pos   # Normalized to  to improve convergence
 
         def moment_balance_top_reinforcement_constraint_neg(x) -> float:
+            # Setup
             As, As_ratio, _, y_neg, _, sigma_cls_neg = x
-            As *= cm_m
-            sigma_s = self.compute_steel_stress(d - y_neg, y_neg, sigma_cls_neg, n)
+            As *= cmq_mq
+            sigma_cls_neg *= sigma_adm_cls
+            # Compute
+            sigma_s = self._compute_steel_stress(d - y_neg, y_neg, sigma_cls_neg, n)
             steel_contribution = As * As_ratio * sigma_s * d_d
             concrete_contribution = 0.5 * b * y_neg * sigma_cls_neg * (cop - y_neg / 3)
-            return steel_contribution + concrete_contribution - M_neg
+            # Return the difference between the contributions and the moment
+            moment_balance = steel_contribution + concrete_contribution - M_neg
+            return moment_balance / M_neg   # Normalized to  to improve convergence
 
         def moment_balance_bot_reinforcement_constraint_neg(x) -> float:
+            # Setup
             As, _, _, y_neg, _, sigma_cls_neg = x
-            As *= cm_m
-            sigma_s = self.compute_steel_stress(y_neg - cop, y_neg, sigma_cls_neg, n)
+            As *= cmq_mq
+            sigma_cls_neg *= sigma_adm_cls
+            # Compute
+            sigma_s = self._compute_steel_stress(y_neg - cop, y_neg, sigma_cls_neg, n)
             steel_contribution = As * sigma_s * d_d
             concrete_contribution = 0.5 * b * y_neg * sigma_cls_neg * (d - y_neg / 3)
-            return steel_contribution + concrete_contribution - M_neg
+            # Return the difference between the contributions and the moment
+            moment_balance = steel_contribution + concrete_contribution - M_neg
+            return moment_balance / M_neg   # Normalized to  to improve convergence
 
         def maximum_adm_steel_stress_top_constraint_pos(x) -> float:
+            # Setup
             _, _, y_pos, _, sigma_cls_pos, _ = x
-            sigma_s = self.compute_steel_stress(d - y_pos, y_pos, sigma_cls_pos, n)
-            return sigma_adm_steel - sigma_s
+            sigma_cls_pos *= sigma_adm_cls
+            # Compute
+            sigma_s = self._compute_steel_stress(d - y_pos, y_pos, sigma_cls_pos, n)
+            # Return the difference between the maximum allowable stress and the computed stress
+            sigma_balance = sigma_adm_steel - sigma_s
+            return sigma_balance / sigma_adm_steel  # Normalized to  to improve convergence
 
         def maximum_adm_steel_stress_bot_constraint_pos(x) -> float:
+            # Setup
             _, _, y_pos, _, sigma_cls_pos, _ = x
-            sigma_s = self.compute_steel_stress(y_pos - cop, y_pos, sigma_cls_pos, n)
-            return sigma_adm_steel - sigma_s
+            sigma_cls_pos *= sigma_adm_cls
+            # Compute
+            sigma_s = self._compute_steel_stress(y_pos - cop, y_pos, sigma_cls_pos, n)
+            # Return the difference between the maximum allowable stress and the computed stress
+            sigma_balance = sigma_adm_steel - sigma_s
+            return sigma_balance / sigma_adm_steel  # Normalized to  to improve convergence
 
         def maximum_adm_steel_stress_top_constraint_neg(x) -> float:
+            # Setup
             _, _, _, y_neg, _, sigma_cls_neg = x
-            sigma_s = self.compute_steel_stress(d - y_neg, y_neg, sigma_cls_neg, n)
-            return sigma_adm_steel - sigma_s
+            sigma_cls_neg *= sigma_adm_cls
+            # Compute
+            sigma_s = self._compute_steel_stress(d - y_neg, y_neg, sigma_cls_neg, n)
+            # Return the difference between the maximum allowable stress and the computed stress
+            sigma_balance = sigma_adm_steel - sigma_s
+            return sigma_balance / sigma_adm_steel  # Normalized to  to improve convergence
 
         def maximum_adm_steel_stress_bot_constraint_neg(x) -> float:
+            # Setup
             _, _, _, y_neg, _, sigma_cls_neg = x
-            sigma_s = self.compute_steel_stress(y_neg - cop, y_neg, sigma_cls_neg, n)
-            return sigma_adm_steel - sigma_s
+            sigma_cls_neg *= sigma_adm_cls
+            # Compute
+            sigma_s = self._compute_steel_stress(y_neg - cop, y_neg, sigma_cls_neg, n)
+            # Return the difference between the maximum allowable stress and the computed stress
+            sigma_balance = sigma_adm_steel - sigma_s
+            return sigma_balance / sigma_adm_steel  # Normalized to  to improve convergence
 
         # Initial guess
         initial_guess = [
-            As_pred / cm_m,
-            M_neg / M_pos,
-            h / 3,
-            h / 3,
-            sigma_adm_cls,
-            sigma_adm_cls
+            As_pred / mq_cmq,   # Bottom reinforcement area in cmq
+            M_neg / M_pos,      # Ratio of top to bottom reinforcement area
+            h / 3,              # Depth of the neutral axis for positive moment
+            h / 3,              # Depth of the neutral axis for negative moment
+            0.8,                # Ratio of top concrete stress to allowable concrete stress
+            0.8                 # Ratio of bottom concrete stress to allowable concrete stress
         ]
 
         # Bounds
         bounds = [
-            [0, None],
-            [0, None],
-            [0, h],
-            [0, h],
-            [0, sigma_adm_cls],
-            [0, sigma_adm_cls]
+            [0, None],          # Bottom reinforcement area in cmq
+            [0, None],          # Ratio of top to bottom reinforcement area
+            [0, h],             # Depth of the neutral axis for positive moment
+            [0, h],             # Depth of the neutral axis for negative moment
+            [0, 1],             # Ratio of top concrete stress to allowable concrete stress
+            [0, 1]              # Ratio of bottom concrete stress to allowable concrete stress
         ]
 
         # Constraints
@@ -234,14 +262,14 @@ class SkwBeamSectionDesign:
         result = minimize(
             obj_function,
             initial_guess,
-            method='SLSQP',
+            method='trust-constr',  # SLSQP is not working for some reason
             bounds=bounds,
             constraints=constraints
         )
 
-        As, As_ratio = result.x[0], result.x[1]
-        As *= cm_m  # Convert to m²
-        return As, As_ratio
+        As, As_ratio, *_ = result.x
+        As *= cmq_mq  # Convert to m²
+        return float(As), float(As_ratio), result.success
 
 
 @dataclass
@@ -331,18 +359,12 @@ def design_beam_section(
     reinforcement areas are calculated, and the beam is checked for stress compliance.
 
     :param M_pos: Positive bending moment in kNm
-    :type M_pos: float
     :param M_neg: Negative bending moment in kNm
-    :type M_neg: float
-    :param sigma_cls_adm: Allowable compressive stress of concrete in MPa
-    :type sigma_cls_adm: float
-    :param sigma_s_adm: Allowable tensile stress of steel in MPa
-    :type sigma_s_adm: float
+    :param sigma_cls_adm: Allowable compressive stress of concrete in kPa
+    :param sigma_s_adm: Allowable tensile stress of steel in kPa
     :param section_geometry: Optional predefined section geometry, defaults to None
-    :type section_geometry: Optional[SectionGeometry]
     :raises ValueError: Raised if no valid reinforcement solution is found for top or bottom reinforcement
     :return: Designed rectangular section with specified reinforcement
-    :rtype: RectangularSection
     """
 
     # Initial estimate of steel area (As) for starting reinforcement calculations
@@ -401,7 +423,7 @@ def design_beam_section(
     )
 
     # Compute minimum steel area required
-    As, As_ratio = section_design.compute_minimum_steel_area(
+    As, As_ratio, _ = section_design.compute_minimum_steel_area(
         sigma_adm_cls=sigma_cls_adm,
         sigma_adm_steel=sigma_s_adm,
         n=15,

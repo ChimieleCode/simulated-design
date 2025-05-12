@@ -26,9 +26,7 @@ class ColumnSectionDesign:
     checks if the design satisfies the given stress limits.
 
     :param section_geometry: The geometry of the column section.
-    :type section_geometry: SectionGeometry
     :param design_sollicitations: The forces (axial and moment) applied to the column.
-    :type design_sollicitations: MemberSollicitations
     """
     def __init__(self,
                  section_geometry: SectionGeometry,
@@ -48,15 +46,10 @@ class ColumnSectionDesign:
         the neutral axis, concrete stress, and modular ratio.
 
         :param distance: Distance between the reinforcement and the neutral axis.
-        :type distance: float
         :param neutral_axis: Location of the neutral axis.
-        :type neutral_axis: float
         :param sigma_cls: Concrete stress at the top.
-        :type sigma_cls: float
         :param n: Modular ratio (default is 15).
-        :type n: float
         :return: Calculated steel stress.
-        :rtype: float
         """
         return n * sigma_cls * distance / neutral_axis
 
@@ -71,14 +64,10 @@ class ColumnSectionDesign:
         Computes the minimum required steel area (As) for the column section
         based on the concrete and steel stress limitations.
 
-        :param sigma_adm_cls: Allowable compressive stress of concrete in MPa.
-        :type sigma_adm_cls: float
-        :param sigma_adm_steel: Allowable tensile stress of steel in MPa.
-        :type sigma_adm_steel: float
+        :param sigma_adm_cls: Allowable compressive stress of concrete in kPa.
+        :param sigma_adm_steel: Allowable tensile stress of steel in kPa.
         :param n: Modular ratio, defaults to 15.
-        :type n: float, optional
         :param As_pred: Initial estimate of steel reinforcement area in m^2, defaults to 1e-4.
-        :type As_pred: float, optional
         :return: The minimum required steel area. If the optimization succeeds
         """
 
@@ -236,15 +225,10 @@ class VerifyRectangularColumn:
     stress limits based on the applied axial load and moment.
 
     :param h: Height of the column section in meters.
-    :type h: float
     :param b: Width of the column section in meters.
-    :type b: float
     :param As_top: Steel area in the top reinforcement.
-    :type As_top: float
     :param As_bot: Steel area in the bottom reinforcement.
-    :type As_bot: float
     :param cop: Concrete cover in meters.
-    :type cop: float
     """
 
     h: float
@@ -265,18 +249,12 @@ class VerifyRectangularColumn:
         Verifies whether the column section meets the allowable stress limits for both
         concrete and steel based on the applied axial load and moment.
 
-        :param sigma_cls_adm: Allowable compressive stress of concrete in MPa.
-        :type sigma_cls_adm: float
-        :param sigma_s_adm: Allowable tensile stress of steel in MPa.
-        :type sigma_s_adm: float
+        :param sigma_cls_adm: Allowable compressive stress of concrete in kPa.
+        :param sigma_s_adm: Allowable tensile stress of steel in kPa.
         :param N: Axial load in kN.
-        :type N: float
         :param M: Bending moment in kNm.
-        :type M: float
         :param n: Modular ratio, defaults to 15.
-        :type n: float, optional
         :return: Tuple containing the concrete stress ratio and maximum steel stress ratio.
-        :rtype: Tuple[float, float]
         """
 
         # Calculate eccentricity and neutral axis
@@ -318,18 +296,11 @@ def design_column_section(
     steel reinforcement and checks if the section meets the stress limits.
 
     :param M: Applied bending moment in kNm
-    :type M: float
     :param N: Applied axial load in kN
-    :type N: float
-    :param sigma_cls_adm: Allowable compressive stress of concrete in MPa
-    :type sigma_cls_adm: float
-    :param sigma_s_adm: Allowable tensile stress of steel in MPa
-    :type sigma_s_adm: float
-    :param section_geometry: Geometry of the rectangular section (height, width, cover)
+    :param sigma_cls_adm: Allowable compressive stress of concrete in kPa
+    :param sigma_s_adm: Allowable tensile stress of steel in kPa
     :type section_geometry: SectionGeometry
-    :raises ValueError: Raised if no valid reinforcement solution is found
     :return: Designed rectangular column section with calculated reinforcement
-    :rtype: RectangularSection
     """
 
     # Initial estimate of steel area (As) for starting reinforcement calculations
