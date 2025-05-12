@@ -17,35 +17,22 @@ from src.utils import round_to_nearest
 mmq_mq = 1e-6   # mm^2 to m^2
 mq_cmq = 1e4    # m^2 to cm^2
 cmq_mq = 1e-4   # m^2 to cm^2
-
-
 def unconditioned_design_bottom_reinf(
-        M: float,
-        b: float,
-        sigma_cls_adm: float,
-        sigma_s_adm: float,
-        n: int = 15
+    M: float,
+    b: float,
+    sigma_cls_adm: float,
+    sigma_s_adm: float,
+    n: int = 15
 ) -> tuple[float, float]:
     """
     Calculates the unconditioned design of bottom reinforcement in a rectangular beam section.
 
-    Parameters
-    ----------
-    M : float
-        Applied bending moment.
-    b : float
-        Width of the beam section.
-    sigma_cls_adm : float
-        Allowable stress in the concrete.
-    sigma_s_adm : float
-        Allowable stress in the steel reinforcement.
-    n : int, optional
-        Modular ratio, by default 15.
-
-    Returns
-    -------
-    Tuple[float, float]
-        The effective depth and area of reinforcement required.
+    :param M: Applied bending moment [kNm].
+    :param b: Width of the beam section [m].
+    :param sigma_cls_adm: Allowable stress in the concrete [kPa].
+    :param sigma_s_adm: Allowable stress in the steel reinforcement [kPa].
+    :param n: Modular ratio, defaults to 15.
+    :return: A tuple containing the effective depth [m] and area of reinforcement required [m²].
     """
     # Design parameters
     k = compute_neutral_axis_ratio(sigma_cls_adm, sigma_s_adm, n)
@@ -275,20 +262,13 @@ class SkwBeamSectionDesign:
 @dataclass
 class VerifyRectangularBeam:
     """
-    Class for verifying the structural integrity of a rectangular beam section.
+    A class for verifying the structural integrity of a rectangular beam section.
 
-    Attributes
-    ----------
-    h : float
-        Height of the rectangular beam section.
-    b : float
-        Width of the rectangular beam section.
-    As_top : float
-        Area of the top steel reinforcement.
-    As_bot : float
-        Area of the bottom steel reinforcement.
-    cop : float
-        Distance from the top fiber to the centroid of the top reinforcement (cover of concrete).
+    :param h: Height of the rectangular beam section [m].
+    :param b: Width of the rectangular beam section [m].
+    :param As_top: Area of the top steel reinforcement [m²].
+    :param As_bot: Area of the bottom steel reinforcement [m²].
+    :param cop: Distance from the top fiber to the centroid of the top reinforcement (cover of concrete) [m].
     """
 
     h: float
@@ -297,30 +277,23 @@ class VerifyRectangularBeam:
     As_bot: float
     cop: float
 
-    def verify_section(self,
-                       sigma_cls_adm: float,
-                       sigma_s_adm: float,
-                       M: float,
-                       n: float = 15) -> tuple[float, float]:
+    def verify_section(
+        self,
+        sigma_cls_adm: float,
+        sigma_s_adm: float,
+        M: float,
+        n: float = 15
+    ) -> tuple[float, float]:
         """
         Verifies the beam section by calculating the maximum concrete and steel stresses.
 
-        Parameters
-        ----------
-        sigma_adm_cls : float
-            Allowable concrete stress.
-        sigma_adm_steel : float
-            Allowable steel stress.
-        M : float
-            Applied moment on the section.
-        n : float, optional
-            Modular ratio, by default 15.
-
-        Returns
-        -------
-        Tuple[float, float]
-            A tuple containing the ratio of computed concrete stress to allowable stress,
-            and the maximum ratio of steel stress to allowable stress.
+        :param sigma_cls_adm: Allowable concrete stress [kPa].
+        :param sigma_s_adm: Allowable steel stress [kPa].
+        :param M: Applied moment on the section [kNm].
+        :param n: Modular ratio (Es/Ec), defaults to 15.
+        :return: A tuple containing:
+            - The ratio of computed concrete stress to allowable stress.
+            - The maximum ratio of steel stress to allowable stress.
         """
         b = self.b
         As_s = [self.As_top, self.As_bot]
