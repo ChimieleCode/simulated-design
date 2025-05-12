@@ -3,75 +3,57 @@ from collections.abc import Iterable, Sequence
 import numpy as np
 
 
-def compute_neutral_axis_ratio(sigma_cls_adm: float,
-                               sigma_s_adm: float,
-                               n: int = 15) -> float:
+def compute_neutral_axis_ratio(
+        sigma_cls_adm: float,
+        sigma_s_adm: float,
+        n: int = 15
+    ) -> float:
     """
-    Computes the neutral axis ratio for a rectangular beam section.
+    _summary_
 
-    Parameters
-    ----------
-    sigma_cls_adm : float
-        Allowable stress in the concrete.
-    sigma_s_adm : float
-        Allowable stress in the steel reinforcement.
-    n : int, optional
-        Modular ratio (steel to concrete modulus ratio), by default 15.
-
-    Returns
-    -------
-    float
-        The neutral axis ratio of the section.
+    :param sigma_cls_adm: _description_
+    :param sigma_s_adm: _description_
+    :param n: _description_, defaults to 15
+    :return: _description_
     """
     return sigma_cls_adm / (sigma_cls_adm + sigma_s_adm/n)
 
 
-def compute_alpha_bottom_reinf(k: float,
-                               sigma_cls_adm: float) -> float:
+def compute_alpha_bottom_reinf(
+        k: float,
+        sigma_cls_adm: float
+    ) -> float:
     """
-    Computes the alpha coefficient for bottom reinforcement in a rectangular beam section.
+    _summary_
 
-    Parameters
-    ----------
-    k : float
-        Neutral axis ratio.
-    sigma_cls_adm : float
-        Allowable stress in the concrete.
-
-    Returns
-    -------
-    float
-        Alpha coefficient for bottom reinforcement.
+    :param k: _description_
+    :param sigma_cls_adm: _description_
+    :return: _description_
     """
     return np.sqrt(2 / (k * (1 - k/3) * sigma_cls_adm))
 
 
-def compute_beta_bottom_reinf(alpha: float,
-                              k: float,
-                              sigma_s_adm: float) -> float:
+def compute_beta_bottom_reinf(
+        alpha: float,
+        k: float,
+        sigma_s_adm: float
+    ) -> float:
     """
-    Computes the beta coefficient for bottom reinforcement in a rectangular beam section.
+    _summary_
 
-    Parameters
-    ----------
-    alpha : float
-        Alpha coefficient for bottom reinforcement.
-    k : float
-        Neutral axis ratio.
-    sigma_s_adm : float
-        Allowable stress in the steel reinforcement.
-
-    Returns
-    -------
-    float
-        Beta coefficient for bottom reinforcement.
+    :param alpha: _description_
+    :param k: _description_
+    :param sigma_s_adm: _description_
+    :return: _description_
     """
     return (sigma_s_adm * alpha * (1 - k/3))**-1
 
 
-def compute_maximum_concrete_stress(N: float,
-                                    Sx: float,
-                                    y: float) -> float:
+def compute_maximum_concrete_stress(
+        N: float,
+        Sx: float,
+        y: float
+    ) -> float:
     """
     Compute the maximum stress in concrete.
 
@@ -86,11 +68,13 @@ def compute_maximum_concrete_stress(N: float,
     return N / Sx * y
 
 
-def compute_maximum_steel_stress(N: float,
-                                 Sx: float,
-                                 y: float,
-                                 n: float,
-                                 d: float) -> float:
+def compute_maximum_steel_stress(
+        N: float,
+        Sx: float,
+        y: float,
+        n: float,
+        d: float
+    ) -> float:
     """
     Compute the maximum stress in steel reinforcement.
 
@@ -108,11 +92,13 @@ def compute_maximum_steel_stress(N: float,
     return n * N / Sx * (d - y)
 
 
-def compute_static_moment(b: float,
-                          y: float,
-                          n: float,
-                          As_s: Iterable[float],
-                          d_s: Iterable[float]) -> float:
+def compute_static_moment(
+        b: float,
+        y: float,
+        n: float,
+        As_s: Iterable[float],
+        d_s: Iterable[float]
+    ) -> float:
     """
     Computes the static moment for the section.
 
@@ -130,11 +116,13 @@ def compute_static_moment(b: float,
 
 
 # Function to compute the neutral axis
-def compute_neutral_axis(n: float,
-                         b: float,
-                         u: float,
-                         As_s: Sequence[float],
-                         d_s: Sequence[float]) -> float:
+def compute_neutral_axis(
+        n: float,
+        b: float,
+        u: float,
+        As_s: Sequence[float],
+        d_s: Sequence[float]
+    ) -> float:
     """
     Computes the neutral axis for a given beam section using a cubic polynomial.
 

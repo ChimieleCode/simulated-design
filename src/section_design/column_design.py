@@ -12,9 +12,13 @@ from src.section_design.stress_functions import (
 from src.sollicitations import MemberSollicitation
 
 # Unit conversion constants
-mmq_mq = 1e-6  # mm^2 to m^2
+mmq_mq = 1e-6  # mm^2 to m^2mq
+mq_cmq = 1e4  # m^2 to cm^2
+mq_dmq = 1e2  # m^2 to dm^2
+dmq_mq = 1e-2  # dm^2 to m^2
 
 
+# Dimensioning Algorithm
 class ColumnSectionDesign:
     """
     This class is responsible for designing the column section given its geometry
@@ -33,7 +37,7 @@ class ColumnSectionDesign:
         self.__design_sollicitations = design_sollicitations
 
     @staticmethod
-    def compute_steel_stress(
+    def _compute_steel_stress(
             distance: float,
             neutral_axis: float,
             sigma_cls: float,
@@ -62,7 +66,7 @@ class ColumnSectionDesign:
             sigma_adm_steel: float,
             n: float = 15.,
             As_pred: float = 1e-4
-        ) -> float:
+        ) -> tuple[float, bool]:
         """
         Computes the minimum required steel area (As) for the column section
         based on the concrete and steel stress limitations.
@@ -75,8 +79,7 @@ class ColumnSectionDesign:
         :type n: float, optional
         :param As_pred: Initial estimate of steel reinforcement area in m^2, defaults to 1e-4.
         :type As_pred: float, optional
-        :return: The minimum required steel area.
-        :rtype: float
+        :return: The minimum required steel area. If the optimization succeeds
         """
 
         # Retrieve column section geometry
@@ -96,56 +99,107 @@ class ColumnSectionDesign:
 
         # Objective function for optimization (minimizes As)
         def obj_function(x) -> float:
-            return x[0]  # Minimize steel area (As)
+            As, *_ = x
+            # Objective function to minimize the steel area (As)
+            obj = As**2 # The squared is used to have faster convergence
+
+            # Penalty
+            p_1 = moment_balance_top_reinforcement_constraint(x)
+            p_2 = moment_balance_bot_reinforcement_constraint(x)
+            p_3 = min(
+                maximum_adm_steel_stress_top_constraint(x),
+                maximum_adm_steel_stress_bot_constraint(x),
+                maximum_adm_concrete_stress_constraint(x)
+            )
+
+            # Penalty for the constraints
+            p_w = 1e6
+
+            # Adjusted obj
+            return obj + p_w * (p_1**2 + p_2**2 + p_3**2)
 
         # Constraints to maintain moment balance at the top reinforcement
         def moment_balance_top_reinforcement_constraint(x) -> float:
-            As, y, sigma_cls = x
-            sigma_s = self.compute_steel_stress(d - y, y, sigma_cls, n)
+            # Setup
+            As, y = x
+            As_mq = As * dmq_mq  # Convert to m^2
+            # this is a unitized constraint, must be scalded
+            sigma_cls = positive_concrete_stress_constraint(x) * sigma_adm_cls
+            # Compute
+            sigma_cls = positive_concrete_stress_constraint(x) * sigma_adm_cls
+            sigma_s = self._compute_steel_stress(d - y, y, sigma_cls, n)
             axial_contribution = N * (u + cop)
-            steel_contribution = As * sigma_s * d_d
+            steel_contribution = As_mq * sigma_s * d_d
             concrete_contribution = 0.5 * b * y * sigma_cls * (cop - y / 3)
-            return steel_contribution + concrete_contribution - axial_contribution
+            # Division is used to ensure the constraintis proprely scaled
+            return (steel_contribution + concrete_contribution - axial_contribution) / axial_contribution
 
         # Constraints to maintain moment balance at the bottom reinforcement
         def moment_balance_bot_reinforcement_constraint(x) -> float:
-            As, y, sigma_cls = x
-            sigma_s = self.compute_steel_stress(y - cop, y, sigma_cls, n)
+            # Setup
+            As, y = x
+            As_mq = As * dmq_mq  # Convert to m^2
+            # this is a unitized constraint, must be scalded
+            sigma_cls = positive_concrete_stress_constraint(x) * sigma_adm_cls
+            # Compute
+            sigma_s = self._compute_steel_stress(y - cop, y, sigma_cls, n)
             axial_contribution = N * (u + d)
-            steel_contribution = As * sigma_s * d_d
+            steel_contribution = As_mq * sigma_s * d_d
             concrete_contribution = 0.5 * b * y * sigma_cls * (d - y / 3)
-            return steel_contribution + concrete_contribution - axial_contribution
-
-        # Constraint ensuring positive steel stress at the top
-        def positive_steel_stress_top_constraint(x) -> float:
-            _, y, sigma_cls = x
-            return self.compute_steel_stress(d - y, y, sigma_cls, n)
-
-        # Constraint ensuring steel stress at the top does not exceed the allowable stress
-        def maximum_adm_steel_stress_top_constraint(x) -> float:
-            return sigma_adm_steel - positive_steel_stress_top_constraint(x)
-
-        # Constraint ensuring positive steel stress at the bottom
-        def positive_steel_stress_bot_constraint(x) -> float:
-            _, y, sigma_cls = x
-            return self.compute_steel_stress(y - cop, y, sigma_cls, n)
+            # Division is used to ensure the constraintis proprely scaled
+            return (steel_contribution + concrete_contribution - axial_contribution) / axial_contribution
 
         # Constraint ensuring steel stress at the bottom does not exceed the allowable stress
         def maximum_adm_steel_stress_bot_constraint(x) -> float:
-            return sigma_adm_steel - positive_steel_stress_bot_constraint(x)
+            return 1 - positive_steel_stress_bot_constraint(x)
+
+        # Constraint ensuring positive steel stress at the top
+        def positive_steel_stress_bot_constraint(x) -> float:
+            _, y = x
+            sigma_cls = positive_concrete_stress_constraint(x) * sigma_adm_cls
+            sigma_steel = self._compute_steel_stress(d - y, y, sigma_cls, n)
+            # Division is used to ensure the constraintis proprely scaled
+            return sigma_steel / sigma_adm_steel
+
+        # Constraint ensuring steel stress at the top does not exceed the allowable stress
+        def maximum_adm_steel_stress_top_constraint(x) -> float:
+            return 1 - positive_steel_stress_top_constraint(x)
+
+        # Constraint ensuring positive steel stress at the bottom
+        def positive_steel_stress_top_constraint(x) -> float:
+            _, y = x
+            sigma_cls = positive_concrete_stress_constraint(x) * sigma_adm_cls
+            sigma_steel = self._compute_steel_stress(y - cop, y, sigma_cls, n)
+            # Division is used to ensure the constraintis proprely scaled
+            return sigma_steel / sigma_adm_steel
+
+
+        # Constraint ensuring positive concrete stress
+        def positive_concrete_stress_constraint(x) -> float:
+            # Setup
+            As, y = x
+            As_mq = As * dmq_mq  # Convert to m^2
+            # Compute
+            Sx = compute_static_moment(b, y, n, [As_mq] * 2, [cop, d])
+            sigma_cls = compute_maximum_concrete_stress(N, Sx, y)
+            # Division is used to ensure the constraintis proprely scaled
+            return sigma_cls / sigma_adm_cls
+
+        # Constraint ensuring concrete stress does not exceed the allowable stress
+        def maximum_adm_concrete_stress_constraint(x) -> float:
+            # Division is used to ensure the constraintis proprely scaled
+            return 1 - positive_concrete_stress_constraint(x)
 
         # Define the initial guesses for the variables
         initial_guess = [
-            As_pred,        # Estimated reinforcement area (As) in m^2
-            h / 3,          # Initial estimate for the neutral axis position
-            sigma_adm_cls   # Concrete stress
+            As_pred * mq_dmq,        # Estimated reinforcement area (As) in dm^2 to have similar order to h/3
+            h / 3          # Initial estimate for the neutral axis position
         ]
 
         # Bounds for the variables (positive values only)
         bounds = [
             [0, None],          # Reinforcement area must be positive
             [0, h],             # Neutral axis must be within the section height
-            [0, sigma_adm_cls]  # Concrete stress must be less than the allowable stress
         ]
 
         # Constraints for optimization
@@ -154,24 +208,27 @@ class ColumnSectionDesign:
             {'type': 'eq', 'fun': moment_balance_top_reinforcement_constraint},
             {'type': 'ineq', 'fun': positive_steel_stress_bot_constraint},
             {'type': 'ineq', 'fun': positive_steel_stress_top_constraint},
+            {'type': 'ineq', 'fun': positive_concrete_stress_constraint},
             {'type': 'ineq', 'fun': maximum_adm_steel_stress_bot_constraint},
-            {'type': 'ineq', 'fun': maximum_adm_steel_stress_top_constraint}
+            {'type': 'ineq', 'fun': maximum_adm_steel_stress_top_constraint},
+            {'type': 'ineq', 'fun': maximum_adm_concrete_stress_constraint}
         )
 
         # Perform optimization to minimize As subject to constraints
         result = minimize(
             obj_function,
             initial_guess,
-            method='SLSQP',
+            method='trust-constr',  # SLSQP method fails for some reason, even if faster
             bounds=bounds,
             constraints=constraints
         )
 
         # Return the optimized steel area (As)
         As, *_ = result.x
-        return As
+        return float(As * dmq_mq), bool(result.success)
 
 
+# Verify the column section
 @dataclass
 class VerifyRectangularColumn:
     """
@@ -247,7 +304,7 @@ class VerifyRectangularColumn:
         return check_cls, max(check_steel)
 
 
-
+# Function for design
 def design_column_section(
         M: float,
         N: float,
@@ -291,7 +348,7 @@ def design_column_section(
     )
 
     # Compute the minimum required steel area for the column
-    As_design = section_design.compute_minimum_steel_area(
+    As_design, _ = section_design.compute_minimum_steel_area(
         sigma_adm_cls=sigma_cls_adm,
         sigma_adm_steel=sigma_s_adm,
         n=15,
@@ -312,7 +369,7 @@ def design_column_section(
 
         # Raise error if no valid reinforcement solution is found
         if reinf is None:
-            raise ValueError(f"Warning, no solution was found with reinforcement area: {As_design * 10000:.2f} cmq")
+            raise ValueError(f"Warning, no solution was found with reinforcement area: {As_design * mq_cmq:.2f} cmq")
 
         # Calculate the actual steel area of the selected reinforcement
         As = reinforcement_area(*reinf) * mmq_mq
