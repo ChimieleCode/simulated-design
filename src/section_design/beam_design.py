@@ -17,6 +17,9 @@ from src.utils import round_to_nearest
 mmq_mq = 1e-6   # mm^2 to m^2
 mq_cmq = 1e4    # m^2 to cm^2
 cmq_mq = 1e-4   # m^2 to cm^2
+
+
+# Predimensioning of the bottom reinforcement
 def unconditioned_design_bottom_reinf(
     M: float,
     b: float,
@@ -46,6 +49,7 @@ def unconditioned_design_bottom_reinf(
     return d, As
 
 
+# Design routines for section
 class SkwBeamSectionDesign:
     """
     A class for designing a skew beam section under positive and negative bending
@@ -259,6 +263,7 @@ class SkwBeamSectionDesign:
         return float(As), float(As_ratio), result.success
 
 
+# Verification of the beam section
 @dataclass
 class VerifyRectangularBeam:
     """

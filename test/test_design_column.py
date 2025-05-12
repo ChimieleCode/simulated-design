@@ -87,3 +87,25 @@ class TestVerifyRectangularColumn(unittest.TestCase):
 
         self.assertAlmostEqual(check_cls, cls_f, places=2)
         self.assertAlmostEqual(check_steel, steel_f, places=2)
+
+    def test_verify_section_false_high_eccentricity(self):
+        # Input
+        sigma_cls_adm = 7000.0  # kPa
+        sigma_s_adm = 170000.0  # kPa
+        N = 1500.0              # kN
+        M = 200.0              # kNm
+
+        # Compute the verification of the section
+        check_cls, check_steel = self.column.verify_section(
+            sigma_cls_adm,
+            sigma_s_adm,
+            N,
+            M
+        )
+
+        # Expected values (these should be calculated based on the design criteria)
+        cls_f = 0.886  # Concrete check factor
+        steel_f = 0.515
+
+        self.assertAlmostEqual(check_cls, cls_f, places=2)
+        self.assertAlmostEqual(check_steel, steel_f, places=2)

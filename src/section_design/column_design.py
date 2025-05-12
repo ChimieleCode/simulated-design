@@ -264,6 +264,41 @@ class VerifyRectangularColumn:
         # Determine section neutral axis
         y = compute_neutral_axis(n, self.b, u, [self.As_top, self.As_bot], [self.cop, self.h - self.cop])
 
+        if y > self.h:
+            # Low eccentricity condition
+            return self._verify_low_eccentricity(
+                sigma_cls_adm=sigma_cls_adm,
+                sigma_s_adm=sigma_s_adm,
+                N=N,
+                M=M,
+                n=n
+            )
+        # High eccentricity condition
+        return self._verify_high_eccentricity(
+            sigma_cls_adm=sigma_cls_adm,
+            sigma_s_adm=sigma_s_adm,
+            N=N,
+            y=y,
+            n=n
+        )
+
+    def _verify_high_eccentricity(
+            self,
+            sigma_cls_adm: float,
+            sigma_s_adm: float,
+            N: float,
+            y: float,
+            n: float = 15.
+        ) -> tuple[float, float]:
+        """
+        Verifies the section for low eccentricity conditions.
+
+        :param sigma_cls_adm: Allowable compressive stress of concrete in kPa.
+        :param sigma_s_adm: Allowable tensile stress of steel in kPa.
+        :param N: Axial load in kN.
+        :param y: Neutral axis depth (assumed < h).
+        :return: Tuple containing the concrete stress ratio and maximum steel stress ratio.
+        """
         # Compute static moment for stress calculations
         Sx = compute_static_moment(self.b, y, n, [self.As_top, self.As_bot], [self.cop, self.h - self.cop])
 
@@ -280,6 +315,47 @@ class VerifyRectangularColumn:
 
         # Return the stress ratios for concrete and steel
         return check_cls, max(check_steel)
+
+    def _verify_low_eccentricity(
+            self,
+            sigma_cls_adm: float,
+            sigma_s_adm: float,
+            N: float,
+            M: float,
+            n: float = 15.
+        ) -> tuple[float, float]:
+        """
+        Verifies the section for low eccentricity conditions.
+
+        :param sigma_cls_adm: Allowable compressive stress of concrete in kPa.
+        :param sigma_s_adm: Allowable tensile stress of steel in kPa.
+        :param N: Axial load in kN.
+        :param M: Bending moment in kNm.
+        :return: Tuple containing the concrete stress ratio and maximum steel stress ratio.
+        """
+        # Calculate eccentricity and neutral axis
+        e = M / N
+        u = e - self.h / 2
+        d = self.h - self.cop
+        As = self.As_bot    # Low eccentricity method requires equal As_top and As_bot
+        assert abs(self.As_top - self.As_bot) < 1e-6, 'Top and bottom reinforcement must be equal for this method'
+
+        # Implicit variables (simplify computation)
+        r = (n * As + .5 * self.b * self.h)
+        k = n * As * self.h
+        g = 1/6 * self.b * self.h**2
+        p = 2 * n * As * d * self.cop / self.h
+
+        # Compute stresses
+        sigma_cls_bot = -N * (u + (g + p) / r) / (g + k - 2 * p)
+        sigma_cls_top = N / r - sigma_cls_bot
+        sigma_s_top = n * (sigma_cls_bot + d * (sigma_cls_top - sigma_cls_bot) / self.h)
+
+        # check ratios
+        cls_check = sigma_cls_top / sigma_cls_adm
+        steel_check = sigma_s_top / sigma_s_adm
+
+        return cls_check, steel_check
 
 
 # Function for design
