@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass
 
 from scipy.optimize import minimize
@@ -10,12 +11,61 @@ from src.section_design.stress_functions import (
     compute_maximum_concrete_stress, compute_maximum_steel_stress,
     compute_neutral_axis, compute_static_moment)
 from src.sollicitations import MemberSollicitation
+from src.utils import round_to_nearest
 
 # Unit conversion constants
 mmq_mq = 1e-6  # mm^2 to m^2mq
 mq_cmq = 1e4  # m^2 to cm^2
 mq_dmq = 1e2  # m^2 to dm^2
 dmq_mq = 1e-2  # dm^2 to m^2
+
+
+# Compute strictly necessary area based on the reduction of admissible stress for concrete
+def compute_min_concrete_area(
+        N: float,
+        sigma_cls_adm: float,
+        reduction_factor: float = 0.7
+) -> float:
+    """
+    Computes the minimum concrete area required to resist an axial load (kN) based on
+    the allowable compressive stress of concrete (sigma_cls_adm).
+
+    :param N: Axial load in kN.
+    :param sigma_cls_adm: Allowable compressive stress of concrete in kPa.
+    :param reduction_factor: Reduction factor for concrete area, defaults to 0.7.
+    :return: Minimum concrete area in m².
+    """
+    return N / (sigma_cls_adm * reduction_factor)
+
+
+# Section gemetry
+def define_section_geometry(
+        min_area: float,
+        cop: float,
+        oversizing_factor: float = 1.4,
+        min_width: float = 0.3
+) -> SectionGeometry:
+    """
+    Defines the geometry of a rectangular column section.
+
+    :param min_area: Minimum area of the column section in m².
+    :param cop: Concrete cover in meters.
+    :param oversizing_factor: Factor to increase the minimum area, defaults to 1.4.
+    :return: SectionGeometry object representing the column section.
+    """
+    target_area = min_area * oversizing_factor
+
+    # Calculate the dimensions of the rectangular section
+    b_pre = math.sqrt(target_area / 2.5)
+    b = max(min_width, round_to_nearest(b_pre, .05))  # Round to the nearest 5 cm
+    h_min = target_area / b
+    h = max(min_width, math.ceil(h_min / 0.05) * 0.05)  # Round up to the nearest 5 cm
+
+    return SectionGeometry(
+        h=h,
+        b=b,
+        cop=cop
+    )
 
 
 # Dimensioning Algorithm
@@ -364,7 +414,8 @@ def design_column_section(
         N: float,
         sigma_cls_adm: float,
         sigma_s_adm: float,
-        section_geometry: SectionGeometry
+        section_geometry: SectionGeometry,
+        enforce_bar_diameter: int | None = None
     ) -> RectangularSection:
     """
     Designs a rectangular column section based on axial force (N), bending moment (M),
@@ -403,10 +454,14 @@ def design_column_section(
     )
 
     # Create a reinforcement selector object to find the optimal reinforcement combination
+    min_diameter = 12 if enforce_bar_diameter is None else enforce_bar_diameter
+    max_diameter = 30 if enforce_bar_diameter is None else enforce_bar_diameter
+    max_count = 6
     reinf_selector = ReinforcementCombination(
         section_width=section_geometry.b,
-        min_diameter=12,
-        max_count=6
+        min_diameter=min_diameter,
+        max_diameter=max_diameter,
+        max_count=max_count
     )
 
     section_check_passed: bool = False

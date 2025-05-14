@@ -2,7 +2,9 @@ import unittest
 from unittest.mock import MagicMock
 
 from src.section_design.column_design import (ColumnSectionDesign,
-                                              VerifyRectangularColumn)
+                                              VerifyRectangularColumn,
+                                              compute_min_concrete_area,
+                                              define_section_geometry)
 
 # Unit conversion constants
 mq_cmq = 1e4  # Conversion factor from m^2 to cm^2
@@ -109,3 +111,38 @@ class TestVerifyRectangularColumn(unittest.TestCase):
 
         self.assertAlmostEqual(check_cls, cls_f, places=2)
         self.assertAlmostEqual(check_steel, steel_f, places=2)
+
+
+class TestColumnPeliminaryDesign(unittest.TestCase):
+
+        def test_compute_min_concrete_area(self):
+            # Input
+            N = 600.0  # Axial load in kN
+            sigma_cls_adm = 7000.0  # Allowable compressive stress of concrete in kPa
+            reduction_factor = 0.7
+
+            # Compute the minimum concrete area
+            min_area = compute_min_concrete_area(N, sigma_cls_adm, reduction_factor)
+
+            # Expected value
+            expected_min_area = 0.1224  # m²
+
+            # Assertion
+            self.assertAlmostEqual(min_area, expected_min_area, places=4)
+
+        def test_define_section_geometry(self):
+            min_area = 0.24  # m²
+            oversizing_factor = 1
+            cop = 0.05
+
+            # Compute the section geometry
+            section_geometry = define_section_geometry(min_area, cop, oversizing_factor)
+
+            # Expected values
+            expected_h = 0.8  # Height in meters
+            expected_b = 0.3  # Width in meters
+
+            # Assertions
+            self.assertAlmostEqual(section_geometry.h, expected_h, places=2)
+            self.assertAlmostEqual(section_geometry.b, expected_b, places=2)
+            self.assertAlmostEqual(section_geometry.cop, cop, places=2)
