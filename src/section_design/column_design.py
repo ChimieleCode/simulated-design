@@ -3,10 +3,16 @@ from dataclasses import dataclass
 
 from scipy.optimize import minimize
 
+from src.section_design.detailing_minimums import (
+    DetailingCode, column_section_detail_checker,
+    get_minimum_longitudinal_bar_area_column,
+    get_minimum_stirrup_spacing_column)
 from src.section_design.section_geometry import (RectangularSection,
+                                                 RectangularSectionElement,
                                                  SectionGeometry)
 from src.section_design.section_utils import (ReinforcementCombination,
                                               reinforcement_area)
+from src.section_design.shear_design import ShearSectionDesignStirrups
 from src.section_design.stress_functions import (
     compute_maximum_concrete_stress, compute_maximum_steel_stress,
     compute_neutral_axis, compute_static_moment)
@@ -42,7 +48,7 @@ def compute_min_concrete_area(
 def define_section_geometry(
         min_area: float,
         cop: float,
-        oversizing_factor: float = 1.4,
+        oversizing_factor: float = 1.2,
         min_width: float = 0.3
 ) -> SectionGeometry:
     """
@@ -409,12 +415,91 @@ class VerifyRectangularColumn:
 
 
 # Function for design
+def design_default_column_section(
+        M: float,
+        N: float,
+        sigma_cls_adm: float,
+        sigma_s_adm: float,
+        section_geometry: SectionGeometry,
+        min_reinf_area: float,
+        enforce_bar_diameter: int | None = None
+    ) -> RectangularSection:
+    """
+    Designs a rectangular column section based on axial force (N), bending moment (M),
+    allowable compressive stress, and allowable tensile stress. It computes the required
+    steel reinforcement and checks if the section meets the stress limits.
+    :param M: Applied bending moment in kNm
+    :param N: Applied axial load in kN
+    :param sigma_cls_adm: Allowable compressive stress of concrete in kPa
+    :param sigma_s_adm: Allowable tensile stress of steel in kPa
+    :param section_geometry: Geometry of the column section
+    :param enforce_bar_diameter: Diameter of the reinforcement bars to be enforced
+    :return: Designed rectangular column section with calculated reinforcement
+    """
+    # Create a reinforcement selector object to find the optimal reinforcement combination
+    min_diameter = 12 if enforce_bar_diameter is None else enforce_bar_diameter
+    max_diameter = 30 if enforce_bar_diameter is None else enforce_bar_diameter
+    max_count = 8
+    reinf_selector = ReinforcementCombination(
+        section_width=section_geometry.b,
+        min_diameter=min_diameter,
+        max_diameter=max_diameter,
+        max_count=max_count
+    )
+
+    section_check_passed: bool = False
+    As_design: float = min_reinf_area
+    while not section_check_passed:
+        # Find the best bar combination that meets the steel area requirements
+        reinf = reinf_selector.find_combination(As_design)
+
+        # Raise error if no valid reinforcement solution is found
+        if reinf is None:
+            raise ValueError(f"Warning, no solution was found with reinforcement area: {As_design * mq_cmq:.2f} cmq")
+
+        # Calculate the actual steel area of the selected reinforcement
+        As = reinforcement_area(*reinf) * mmq_mq
+
+        # Verify the column section for the applied loads and moments
+        section_check = VerifyRectangularColumn(
+            **section_geometry.__dict__,
+            As_top=As,
+            As_bot=As
+        )
+        moment_check = section_check.verify_section(
+            sigma_cls_adm=sigma_cls_adm,
+            sigma_s_adm=sigma_s_adm,
+            M=M,
+            N=N
+        )
+
+        # Check if the column design passes all verification checks
+        section_check_passed = all(check <= 1 for check in (moment_check))
+
+        # If the section fails the check, increase the steel area slightly and try again
+        if not section_check_passed:
+            As_design = As + 1e-8
+
+    # After passing the checks, retrieve the reinforcement count and diameter
+    reinf_count, reinf_d = reinf    # type: ignore[possiblyUnboundVariable] must be initialized in while loop
+
+    # Return the designed rectangular section with top and bottom reinforcement
+    return RectangularSection(
+        **section_geometry.__dict__,
+        top_reinf_count=reinf_count,
+        top_reinf_d=reinf_d,
+        bot_reinf_count=reinf_count,
+        bot_reinf_d=reinf_d
+    )
+
+
 def design_column_section(
         M: float,
         N: float,
         sigma_cls_adm: float,
         sigma_s_adm: float,
         section_geometry: SectionGeometry,
+        min_reinf_area: float = 1e-4,
         enforce_bar_diameter: int | None = None
     ) -> RectangularSection:
     """
@@ -429,10 +514,6 @@ def design_column_section(
     :type section_geometry: SectionGeometry
     :return: Designed rectangular column section with calculated reinforcement
     """
-
-    # Initial estimate of steel area (As) for starting reinforcement calculations
-    As_initial: float = 1e-4
-
     # Define the actions (axial load and moment) on the column
     section_actions = MemberSollicitation(
         M=M,
@@ -450,8 +531,9 @@ def design_column_section(
         sigma_adm_cls=sigma_cls_adm,
         sigma_adm_steel=sigma_s_adm,
         n=15,
-        As_pred=As_initial
+        As_pred=min_reinf_area
     )
+    As_design = max(As_design, min_reinf_area)
 
     # Create a reinforcement selector object to find the optimal reinforcement combination
     min_diameter = 12 if enforce_bar_diameter is None else enforce_bar_diameter
@@ -506,4 +588,204 @@ def design_column_section(
         top_reinf_d=reinf_d,
         bot_reinf_count=reinf_count,
         bot_reinf_d=reinf_d
+    )
+
+
+def bidirectional_column_design(
+        M_main: float,
+        V_main: float,
+        M_cross: float,
+        V_cross: float,
+        N: float,
+        sigma_cls_adm: float,
+        sigma_s_adm: float,
+        detailing_code: DetailingCode,
+        cop: float = 0.05,
+        shear_rebar_diameter: int = 6
+) -> tuple[RectangularSectionElement, RectangularSectionElement]:
+    """
+    Designs a column section based on axial force (N), bending moment (M), and shear force (V).
+    It computes the required steel reinforcement and checks if the design satisfies the given stress limits.
+
+    :param M_main: Applied bending moment in kNm
+    :param V_main: Applied shear force in kN
+    :param M_cross: Applied bending moment in kNm
+    :param V_cross: Applied shear force in kN
+    :param sigma_cls_adm: Allowable compressive stress of concrete in kPa
+    :param sigma_s_adm: Allowable tensile stress of steel in kPa
+    :param section_geometry: Geometry of the column section
+    :param N: Axial load in kN
+    :param cop: Concrete cover in meters
+    :param detailing_code: Detailing code to be used for calculations (RD_39 or DM_76)
+    :return: Designed rectangular column section with calculated reinforcement
+    """
+    # Determine a min
+    A_min_cls = compute_min_concrete_area(
+        N=N,
+        sigma_cls_adm=sigma_cls_adm
+    )
+
+    # Define section geometry
+    section_geometry = define_section_geometry(
+        min_area=A_min_cls,
+        cop=cop
+    )
+
+    # Min_reifnforcement area
+    min_reinf_area = get_minimum_longitudinal_bar_area_column(
+        column_area=section_geometry.area,
+        column_min_cls_area=A_min_cls,
+        detailing_code=detailing_code
+    ) / 2 # divided by 2 for top and bottom reinforcementS
+
+    # Deifine main orientation
+    section_geometry_main = section_geometry
+    section_geometry_cross = section_geometry.rotate_90(new_section=True)
+    if M_main < M_cross:
+        section_geometry_main, section_geometry_cross = section_geometry_cross, section_geometry_main
+
+    # Design the main column section
+    if M_main / N <= section_geometry_main.h / 6:
+        # Main is low eccentricity
+        if M_cross / N > section_geometry_cross.h / 6:
+            # Main is low eccentricity
+            # Cross is high eccentricity
+            section_cross = design_column_section(
+                M=M_cross,
+                N=N,
+                sigma_cls_adm=sigma_cls_adm,
+                sigma_s_adm=sigma_s_adm,
+                section_geometry=section_geometry_cross,
+                min_reinf_area=min_reinf_area,
+            )
+            section_main = design_default_column_section(
+                M=M_main,
+                N=N,
+                sigma_cls_adm=sigma_cls_adm,
+                sigma_s_adm=sigma_s_adm,
+                section_geometry=section_geometry_main,
+                min_reinf_area=min_reinf_area,
+                # enforce_bar_diameter=section_cross.bot_reinf_d
+            )
+        else:
+            # Main is low eccentricity
+            # Cross is low eccentricity
+            section_cross = design_default_column_section(
+                M=M_cross,
+                N=N,
+                sigma_cls_adm=sigma_cls_adm,
+                sigma_s_adm=sigma_s_adm,
+                section_geometry=section_geometry_cross,
+                min_reinf_area=min_reinf_area,
+            )
+            section_main = design_default_column_section(
+                M=M_main,
+                N=N,
+                sigma_cls_adm=sigma_cls_adm,
+                sigma_s_adm=sigma_s_adm,
+                section_geometry=section_geometry_main,
+                min_reinf_area=min_reinf_area,
+                # enforce_bar_diameter=section_cross.bot_reinf_d
+            )
+    else:
+        # Main is high eccentricity
+        section_main = design_column_section(
+            M=M_main,
+            N=N,
+            sigma_cls_adm=sigma_cls_adm,
+            sigma_s_adm=sigma_s_adm,
+            section_geometry=section_geometry_main,
+                min_reinf_area=min_reinf_area,
+        )
+        if M_cross / N > section_geometry_cross.h / 6:
+            # Cross is high eccentricity
+            section_cross = design_column_section(
+                M=M_cross,
+                N=N,
+                sigma_cls_adm=sigma_cls_adm,
+                sigma_s_adm=sigma_s_adm,
+                section_geometry=section_geometry_cross,
+                min_reinf_area=min_reinf_area,
+                # enforce_bar_diameter=section_main.bot_reinf_d
+            )
+        else:
+            # Cross is low eccentricity
+            section_cross = design_default_column_section(
+                M=M_cross,
+                N=N,
+                sigma_cls_adm=sigma_cls_adm,
+                sigma_s_adm=sigma_s_adm,
+                section_geometry=section_geometry_cross,
+                min_reinf_area=min_reinf_area,
+                # enforce_bar_diameter=section_main.bot_reinf_d
+            )
+
+    # Shear Design
+    # Main
+    shear_design_main = ShearSectionDesignStirrups(
+        **section_geometry_main.__dict__
+    )
+    min_main_spacing = get_minimum_stirrup_spacing_column(
+        long_bar_d=shear_rebar_diameter,
+        min_dim=min(section_geometry_main.b, section_geometry_main.h),
+        detailing_code=detailing_code
+    )
+    min_spacing_stirrups_main = shear_design_main.design_reinforcement(
+        V_striups=V_main,
+        sigma_s_adm=sigma_s_adm,
+        diameter=shear_rebar_diameter,
+        min_spacing=min_main_spacing
+    )
+
+    # Cross
+    shear_design_cross = ShearSectionDesignStirrups(
+        **section_geometry_cross.__dict__
+    )
+    min_cross_spacing = get_minimum_stirrup_spacing_column(
+        long_bar_d=shear_rebar_diameter,
+        min_dim=min(section_geometry_cross.b, section_geometry_cross.h),
+        detailing_code=detailing_code
+    )
+    min_spacing_stirrups_cross = shear_design_cross.design_reinforcement(
+        V_striups=V_cross,
+        sigma_s_adm=sigma_s_adm,
+        diameter=shear_rebar_diameter,
+        min_spacing=min_cross_spacing
+    )
+
+    # Final stirrups
+    stirrups_spacing = min(min_spacing_stirrups_cross, min_spacing_stirrups_main)
+
+
+    # FINAL SECTIONS
+    section_main = RectangularSectionElement(
+        **section_main.__dict__,
+        stirrups_spacing=stirrups_spacing,
+        stirrups_reinf_d=shear_rebar_diameter
+    )
+    section_cross = RectangularSectionElement(
+        **section_cross.__dict__,
+        stirrups_spacing=stirrups_spacing,
+        stirrups_reinf_d=shear_rebar_diameter
+    )
+
+
+    # Check detailing
+    check_main = column_section_detail_checker(
+        section=section_main,
+        detailing_code=detailing_code,
+        min_cls_area=A_min_cls
+    )
+    check_cross = column_section_detail_checker(
+        section=section_cross,
+        detailing_code=detailing_code,
+        min_cls_area=A_min_cls
+    )
+
+    assert check_main, 'Main section does not meet detailing requirements.'
+    assert check_cross, 'Cross section does not meet detailing requirements.'
+
+    return (
+        section_main,
+        section_cross
     )

@@ -62,6 +62,10 @@ def main(input: dict):
     gravity_loads = gravity_design.compute_gravity_loads(building_geometry)
     print(gravity_loads)
 
+    # Compute permanent loads for the structure
+    permanent_loads = gravity_design.compute_gravity_loads(building_geometry, include_overload=False)
+    print(permanent_loads)
+
 
 
 if __name__ == '__main__':
