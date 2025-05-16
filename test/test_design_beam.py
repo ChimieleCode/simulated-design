@@ -3,10 +3,14 @@ from unittest.mock import MagicMock
 
 from src.section_design.beam_design import (SkwBeamSectionDesign,
                                             VerifyRectangularBeam,
+                                            design_beam_element,
                                             unconditioned_design_bottom_reinf)
+from src.section_design.detailing_minimums import DetailingCode, RebarsType
+from src.section_design.section_utils import reinforcement_area
 
 # Unit conversion constants
 mq_cmq = 1e4  # Conversion factor from m^2 to cm^2
+mmq_mq: float = 1e-6  # Conversion factor from mm^2 to m^2
 
 
 class TestColumnSectionDesign(unittest.TestCase):
@@ -167,3 +171,42 @@ class TestUnconditionedDesignBottomReinf(unittest.TestCase):
         # Assertions
         self.assertAlmostEqual(d, expected_d, places=3)
         self.assertAlmostEqual(As, expected_As, places=6)
+
+    def test_design_beam_section(self):
+        # Input parameters
+        Mpos = 85.
+        Mneg = 30.
+        Vmax = 30.
+        sigma_cls_adm = 9000.
+        sigma_s_adm = 255000
+        detailing_code = DetailingCode.DM_76
+        rebar_type = RebarsType.DEFORMED
+
+        # Compute
+        beam_element = design_beam_element(
+            Mpos=Mpos,
+            Mneg=Mneg,
+            Vmax=Vmax,
+            sigma_cls_adm=sigma_cls_adm,
+            sigma_s_adm=sigma_s_adm,
+            detailing_code=detailing_code,
+            rebar_type=rebar_type
+        )
+
+        # Expected
+        b = .3
+        h = .5
+        cop = .03
+        As_top = reinforcement_area(2, 14) * mmq_mq
+        As_bot = reinforcement_area(4, 16) * mmq_mq
+        Asw = reinforcement_area(2, 6) * mmq_mq
+        s = 0.188
+
+        # Assertions
+        self.assertAlmostEqual(beam_element.h, h, places=2)
+        self.assertAlmostEqual(beam_element.b, b, places=2)
+        self.assertAlmostEqual(beam_element.cop, cop, places=2)
+        self.assertAlmostEqual(beam_element.top_reinf_area, As_top, places=2)
+        self.assertAlmostEqual(beam_element.bot_reinf_area, As_bot, places=2)
+        self.assertAlmostEqual(beam_element.stirrups_reinf_area, Asw, places=2)
+        self.assertAlmostEqual(beam_element.stirrups_spacing, s, places=2)

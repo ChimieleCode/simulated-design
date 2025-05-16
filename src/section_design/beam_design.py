@@ -3,10 +3,16 @@ from dataclasses import dataclass
 import numpy as np
 from scipy.optimize import minimize
 
+from src.section_design.detailing_minimums import (
+    DetailingCode, RebarsType, beam_section_detail_checker,
+    get_max_stirrup_spacing_beam, get_min_longitudinal_bar_area_beam,
+    min_reinf_diameter_beams)
 from src.section_design.section_geometry import (RectangularSection,
+                                                 RectangularSectionElement,
                                                  SectionGeometry)
 from src.section_design.section_utils import (ReinforcementCombination,
                                               reinforcement_area)
+from src.section_design.shear_design import ShearSectionDesignStirrups
 from src.section_design.stress_functions import (compute_alpha_bottom_reinf,
                                                  compute_beta_bottom_reinf,
                                                  compute_neutral_axis_ratio)
@@ -327,6 +333,13 @@ def design_beam_section(
         M_neg: float,
         sigma_cls_adm: float,
         sigma_s_adm: float,
+        detailing_code: DetailingCode,
+        rebar_type: RebarsType,
+        b_min: float = 0.3,
+        cop: float = 0.03,
+        n: float = 15,
+        min_rebar_d: int = 12,
+        max_rebar_count: int = 6,
         section_geometry: SectionGeometry | None = None
     ) -> RectangularSection:
     """
@@ -341,29 +354,29 @@ def design_beam_section(
     :param sigma_cls_adm: Allowable compressive stress of concrete in kPa
     :param sigma_s_adm: Allowable tensile stress of steel in kPa
     :param section_geometry: Optional predefined section geometry, defaults to None
+    :param b_min: Minimum width of the section in m, defaults to 0.3 m
+    :param cop: Cover of concrete in m, defaults to 0.03 m
+    :param n: Modular ratio (Es/Ec), defaults to 15
+    :param min_As: Minimum required steel area in m², defaults to 5e-4 m²
+    :param min_rebar_d: Minimum diameter of reinforcement bars in mm, defaults to 12 mm
+    :param max_rebar_count: Maximum number of reinforcement bars, defaults to 6
     :raises ValueError: Raised if no valid reinforcement solution is found for top or bottom reinforcement
     :return: Designed rectangular section with specified reinforcement
     """
-
-    # Initial estimate of steel area (As) for starting reinforcement calculations
-    As_initial: float = 1e-4
+    As_initial = None
 
     # If no predefined section is given, a new section will be designed
     if section_geometry is None:
-        # Default values for section width (b) and cover (cop)
-        b_default: float = .3
-        cop: float = .03
-
         # Calculate depth and steel area for both positive and negative moments
         d_pos, As_pos = unconditioned_design_bottom_reinf(
             M=M_pos,
-            b=b_default,
+            b=b_min,
             sigma_cls_adm=sigma_cls_adm,
             sigma_s_adm=sigma_s_adm
         )
         d_neg, As_neg = unconditioned_design_bottom_reinf(
             M=M_neg,
-            b=b_default,
+            b=b_min,
             sigma_cls_adm=sigma_cls_adm,
             sigma_s_adm=sigma_s_adm
         )
@@ -381,9 +394,18 @@ def design_beam_section(
         # Define section geometry based on calculated height and default width
         section_geometry = SectionGeometry(
             h_design,
-            b_default,
+            b_min,
             cop
         )
+
+    As_min = get_min_longitudinal_bar_area_beam(
+        section_area=section_geometry.area,
+        detailing_code=detailing_code,
+        bar_type=rebar_type
+    )
+    if As_initial is None:
+        # If no initial steel area is provided, use the minimum required area
+        As_initial = As_min
 
     # Define action data for positive and negative moments
     section_actions_pos = MemberSollicitation(
@@ -404,19 +426,19 @@ def design_beam_section(
     As, As_ratio, _ = section_design.compute_minimum_steel_area(
         sigma_adm_cls=sigma_cls_adm,
         sigma_adm_steel=sigma_s_adm,
-        n=15,
+        n=n,
         As_pred=As_initial
     )
 
     # Calculate required bottom and top reinforcement areas
-    As_bot_design = As * As_ratio
-    As_top_design = As
+    As_bot_design = max(As * As_ratio, As_min)
+    As_top_design = max(As, As_min)
 
     # Create a reinforcement selector object for finding bar combinations
     reinf_selector = ReinforcementCombination(
         section_width=section_geometry.b,
-        min_diameter=12,
-        max_count=6
+        min_diameter=min_rebar_d,
+        max_count=max_rebar_count
     )
 
     section_check_passed: bool = False
@@ -483,3 +505,86 @@ def design_beam_section(
         bot_reinf_count=bot_reinf_count,
         bot_reinf_d=bot_reinf_d
     )
+
+
+def design_beam_element(
+        Mpos: float,
+        Mneg: float,
+        Vmax: float,
+        sigma_cls_adm: float,
+        sigma_s_adm: float,
+        detailing_code: DetailingCode,
+        rebar_type: RebarsType,
+        cop: float = 0.03,
+        n: float = 15,
+        shear_rebar_diameter: int = 6
+) -> RectangularSectionElement:
+    """
+    Designs a beam element based on positive and negative bending moments, shear force,
+    allowable concrete stress, allowable steel stress, detailing code, and optional parameters.
+
+    :param Mpos: Positive bending moment in kNm
+    :param Mneg: Negative bending moment in kNm
+    :param Vmax: Maximum shear force in kN
+    :param sigma_cls_adm: Allowable compressive stress of concrete in kPa
+    :param sigma_s_adm: Allowable tensile stress of steel in kPa
+    :param detailing_code: Detailing code for the design
+    :param cop: Cover of concrete in m, defaults to 0.05 m
+    :param shear_rebar_diameter: Diameter of shear reinforcement in mm, defaults to 6 mm
+    :return: Designed rectangular section with specified reinforcement
+    """
+    # Minimum width
+    b_min = 0.3
+    min_rebar_diameter = min_reinf_diameter_beams.get(detailing_code, 0)  # mm
+
+
+    # Design the beam section based on the provided parameters
+    section = design_beam_section(
+        M_pos=Mpos,
+        M_neg=Mneg,
+        sigma_cls_adm=sigma_cls_adm,
+        sigma_s_adm=sigma_s_adm,
+        detailing_code=detailing_code,
+        rebar_type=rebar_type,
+        b_min=b_min,
+        cop=cop,
+        n=n,
+        min_rebar_d=min_rebar_diameter,
+        max_rebar_count=6,
+    )
+
+    # Calculate shear reinforcement area
+    shear_design_cross = ShearSectionDesignStirrups(
+        h=section.h,
+        b=section.b,
+        cop=section.cop
+    )
+    max_spacing = get_max_stirrup_spacing_beam(
+        section_depth=section.h - section.cop,
+        rebar_d=shear_rebar_diameter,
+        detailing_code=detailing_code
+    )
+    max_spacing_stirrups = shear_design_cross.design_reinforcement(
+        V_striups=Vmax,
+        sigma_s_adm=sigma_s_adm,
+        diameter=shear_rebar_diameter,
+        max_spacing=max_spacing
+    )
+
+    # Check section
+    section_element = RectangularSectionElement(
+        **section.__dict__,
+        stirrups_reinf_d=shear_rebar_diameter,
+        stirrups_spacing=max_spacing_stirrups
+    )
+
+    beam_chech = beam_section_detail_checker(
+        detailing_code=detailing_code,
+        section=section_element,
+        rebar_type=rebar_type
+    )
+
+    assert beam_chech, 'Beam section does not pass detailing code check'
+
+    # Return the designed rectangular section element with calculated reinforcement
+    return section_element

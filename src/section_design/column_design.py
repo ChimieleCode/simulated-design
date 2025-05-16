@@ -5,8 +5,8 @@ from scipy.optimize import minimize
 
 from src.section_design.detailing_minimums import (
     DetailingCode, column_section_detail_checker,
-    get_minimum_longitudinal_bar_area_column,
-    get_minimum_stirrup_spacing_column)
+    get_max_stirrup_spacing_column, get_min_longitudinal_bar_area_column,
+    min_reinf_diameter_colmns)
 from src.section_design.section_geometry import (RectangularSection,
                                                  RectangularSectionElement,
                                                  SectionGeometry)
@@ -422,7 +422,9 @@ def design_default_column_section(
         sigma_s_adm: float,
         section_geometry: SectionGeometry,
         min_reinf_area: float,
-        enforce_bar_diameter: int | None = None
+        min_bar_diameter: int = 12,
+        max_bar_diameter: int = 30,
+        max_bar_count: int = 8
     ) -> RectangularSection:
     """
     Designs a rectangular column section based on axial force (N), bending moment (M),
@@ -437,14 +439,11 @@ def design_default_column_section(
     :return: Designed rectangular column section with calculated reinforcement
     """
     # Create a reinforcement selector object to find the optimal reinforcement combination
-    min_diameter = 12 if enforce_bar_diameter is None else enforce_bar_diameter
-    max_diameter = 30 if enforce_bar_diameter is None else enforce_bar_diameter
-    max_count = 8
     reinf_selector = ReinforcementCombination(
         section_width=section_geometry.b,
-        min_diameter=min_diameter,
-        max_diameter=max_diameter,
-        max_count=max_count
+        min_diameter=min_bar_diameter,
+        max_diameter=max_bar_diameter,
+        max_count=max_bar_count
     )
 
     section_check_passed: bool = False
@@ -499,8 +498,11 @@ def design_column_section(
         sigma_cls_adm: float,
         sigma_s_adm: float,
         section_geometry: SectionGeometry,
+        n: float = 15,
         min_reinf_area: float = 1e-4,
-        enforce_bar_diameter: int | None = None
+        min_bar_diameter: int = 12,
+        max_bar_diameter: int = 30,
+        max_bar_count: int = 8
     ) -> RectangularSection:
     """
     Designs a rectangular column section based on axial force (N), bending moment (M),
@@ -511,7 +513,12 @@ def design_column_section(
     :param N: Applied axial load in kN
     :param sigma_cls_adm: Allowable compressive stress of concrete in kPa
     :param sigma_s_adm: Allowable tensile stress of steel in kPa
-    :type section_geometry: SectionGeometry
+    :param section_geometry: Geometry of the column section
+    :param n: Modular ratio, defaults to 15.
+    :param min_reinf_area: Minimum required steel area in m²
+    :param min_bar_diameter: Minimum diameter of the reinforcement bars in mm
+    :param max_bar_diameter: Maximum diameter of the reinforcement bars in mm
+    :param max_bar_count: Maximum number of reinforcement bars
     :return: Designed rectangular column section with calculated reinforcement
     """
     # Define the actions (axial load and moment) on the column
@@ -530,20 +537,17 @@ def design_column_section(
     As_design, _ = section_design.compute_minimum_steel_area(
         sigma_adm_cls=sigma_cls_adm,
         sigma_adm_steel=sigma_s_adm,
-        n=15,
+        n=n,
         As_pred=min_reinf_area
     )
     As_design = max(As_design, min_reinf_area)
 
     # Create a reinforcement selector object to find the optimal reinforcement combination
-    min_diameter = 12 if enforce_bar_diameter is None else enforce_bar_diameter
-    max_diameter = 30 if enforce_bar_diameter is None else enforce_bar_diameter
-    max_count = 6
     reinf_selector = ReinforcementCombination(
         section_width=section_geometry.b,
-        min_diameter=min_diameter,
-        max_diameter=max_diameter,
-        max_count=max_count
+        min_diameter=min_bar_diameter,
+        max_diameter=max_bar_diameter,
+        max_count=max_bar_count
     )
 
     section_check_passed: bool = False
@@ -600,7 +604,7 @@ def bidirectional_column_design(
         sigma_cls_adm: float,
         sigma_s_adm: float,
         detailing_code: DetailingCode,
-        cop: float = 0.05,
+        cop: float = 0.03,
         shear_rebar_diameter: int = 6
 ) -> tuple[RectangularSectionElement, RectangularSectionElement]:
     """
@@ -632,11 +636,16 @@ def bidirectional_column_design(
     )
 
     # Min_reifnforcement area
-    min_reinf_area = get_minimum_longitudinal_bar_area_column(
+    min_reinf_area = get_min_longitudinal_bar_area_column(
         column_area=section_geometry.area,
         column_min_cls_area=A_min_cls,
         detailing_code=detailing_code
-    ) / 2 # divided by 2 for top and bottom reinforcementS
+    ) / 2 # divided by 2 for top and bottom reinforcement
+
+    min_diameter = min_reinf_diameter_colmns.get(
+        key=detailing_code,
+        default=0
+    ) # type: ignore[reportCallIssue]
 
     # Deifine main orientation
     section_geometry_main = section_geometry
@@ -657,6 +666,7 @@ def bidirectional_column_design(
                 sigma_s_adm=sigma_s_adm,
                 section_geometry=section_geometry_cross,
                 min_reinf_area=min_reinf_area,
+                min_bar_diameter=min_diameter
             )
             section_main = design_default_column_section(
                 M=M_main,
@@ -665,7 +675,7 @@ def bidirectional_column_design(
                 sigma_s_adm=sigma_s_adm,
                 section_geometry=section_geometry_main,
                 min_reinf_area=min_reinf_area,
-                # enforce_bar_diameter=section_cross.bot_reinf_d
+                min_bar_diameter=min_diameter
             )
         else:
             # Main is low eccentricity
@@ -677,6 +687,7 @@ def bidirectional_column_design(
                 sigma_s_adm=sigma_s_adm,
                 section_geometry=section_geometry_cross,
                 min_reinf_area=min_reinf_area,
+                min_bar_diameter=min_diameter
             )
             section_main = design_default_column_section(
                 M=M_main,
@@ -685,7 +696,7 @@ def bidirectional_column_design(
                 sigma_s_adm=sigma_s_adm,
                 section_geometry=section_geometry_main,
                 min_reinf_area=min_reinf_area,
-                # enforce_bar_diameter=section_cross.bot_reinf_d
+                min_bar_diameter=min_diameter
             )
     else:
         # Main is high eccentricity
@@ -695,7 +706,8 @@ def bidirectional_column_design(
             sigma_cls_adm=sigma_cls_adm,
             sigma_s_adm=sigma_s_adm,
             section_geometry=section_geometry_main,
-                min_reinf_area=min_reinf_area,
+            min_reinf_area=min_reinf_area,
+            min_bar_diameter=min_diameter
         )
         if M_cross / N > section_geometry_cross.h / 6:
             # Cross is high eccentricity
@@ -706,7 +718,7 @@ def bidirectional_column_design(
                 sigma_s_adm=sigma_s_adm,
                 section_geometry=section_geometry_cross,
                 min_reinf_area=min_reinf_area,
-                # enforce_bar_diameter=section_main.bot_reinf_d
+                min_bar_diameter=min_diameter
             )
         else:
             # Cross is low eccentricity
@@ -717,7 +729,7 @@ def bidirectional_column_design(
                 sigma_s_adm=sigma_s_adm,
                 section_geometry=section_geometry_cross,
                 min_reinf_area=min_reinf_area,
-                # enforce_bar_diameter=section_main.bot_reinf_d
+                min_bar_diameter=min_diameter
             )
 
     # Shear Design
@@ -725,36 +737,36 @@ def bidirectional_column_design(
     shear_design_main = ShearSectionDesignStirrups(
         **section_geometry_main.__dict__
     )
-    min_main_spacing = get_minimum_stirrup_spacing_column(
+    min_main_spacing = get_max_stirrup_spacing_column(
         long_bar_d=shear_rebar_diameter,
         min_dim=min(section_geometry_main.b, section_geometry_main.h),
         detailing_code=detailing_code
     )
-    min_spacing_stirrups_main = shear_design_main.design_reinforcement(
+    max_spacing_stirrups_main = shear_design_main.design_reinforcement(
         V_striups=V_main,
         sigma_s_adm=sigma_s_adm,
         diameter=shear_rebar_diameter,
-        min_spacing=min_main_spacing
+        max_spacing=min_main_spacing
     )
 
     # Cross
     shear_design_cross = ShearSectionDesignStirrups(
         **section_geometry_cross.__dict__
     )
-    min_cross_spacing = get_minimum_stirrup_spacing_column(
+    min_cross_spacing = get_max_stirrup_spacing_column(
         long_bar_d=shear_rebar_diameter,
         min_dim=min(section_geometry_cross.b, section_geometry_cross.h),
         detailing_code=detailing_code
     )
-    min_spacing_stirrups_cross = shear_design_cross.design_reinforcement(
+    max_spacing_stirrups_cross = shear_design_cross.design_reinforcement(
         V_striups=V_cross,
         sigma_s_adm=sigma_s_adm,
         diameter=shear_rebar_diameter,
-        min_spacing=min_cross_spacing
+        max_spacing=min_cross_spacing
     )
 
     # Final stirrups
-    stirrups_spacing = min(min_spacing_stirrups_cross, min_spacing_stirrups_main)
+    stirrups_spacing = min(max_spacing_stirrups_cross, max_spacing_stirrups_main)
 
 
     # FINAL SECTIONS

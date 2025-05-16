@@ -75,7 +75,7 @@ class ShearSectionDesignStirrups:
             V_striups: float,
             sigma_s_adm: float,
             diameter: int | float = 8,
-            min_spacing: float = 0.33
+            max_spacing: float = 0.33
         ) -> float:
         """
         Designs the stirrup reinforcement for shear, based on the applied shear force and material properties.
@@ -83,7 +83,7 @@ class ShearSectionDesignStirrups:
         :param V_striups: Shear force resisted by the stirrups (in kN).
         :param sigma_s_adm: Allowable tensile stress in the stirrup steel (in kPa).
         :param diameter: Diameter of the stirrups (in mm), defaults to 8.
-        :param min_spacing: Minimum allowable spacing between stirrups (in meters), defaults to 0.33.
+        :param max_spacing: Minimum allowable spacing between stirrups (in meters), defaults to 0.33.
         :return: The required spacing between stirrups (in meters).
         """
         # Effective depth of the section
@@ -94,7 +94,7 @@ class ShearSectionDesignStirrups:
 
         # Compute the required stirrup pitch (spacing) based on the applied shear force and stirrup properties
         return min(
-            min_spacing,
+            max_spacing,
             compute_transversal_reinf_pitch(
                 V=V_striups,
                 stirrup_area=Ast,

@@ -2,6 +2,9 @@ from enum import Enum
 
 from src.section_design.section_geometry import (RectangularSection,
                                                  RectangularSectionElement)
+from src.section_design.section_utils import reinforcement_area
+
+mmq_mq: float = 1e-6  # Conversion factor from mm^2 to m^2
 
 
 class RebarsType(Enum):
@@ -15,15 +18,14 @@ class DetailingCode(Enum):
 
 
 class BeamDeatailsRD39:
-
     @staticmethod
-    def get_minimum_rebar_diameter() -> int:
+    def get_min_rebar_diameter() -> int:
         """
         Minimum diameter of the main reinforcement bars in mm.
 
         :return: diameter in mm.
         """
-        return 12
+        return 0
 
     @staticmethod
     def get_shear_strirrups_share() -> float:
@@ -46,7 +48,7 @@ class BeamDeatailsRD39:
         :return: True if the section meets the requirements, False otherwise.
         """
         # Check min lognitudinal reinforcement
-        if min(section.bot_reinf_d, section.top_reinf_d) < cls.get_minimum_rebar_diameter():
+        if min(section.bot_reinf_d, section.top_reinf_d) < cls.get_min_rebar_diameter():
             return False
         return True
 
@@ -58,7 +60,7 @@ class BeamDeatailsDM76:
     }   # DM 76 Par 2.17
 
     @staticmethod
-    def get_minimum_rebar_diameter() -> int:
+    def get_min_rebar_diameter() -> int:
         """
         Minimum diameter of the main reinforcement bars in mm.
 
@@ -76,7 +78,7 @@ class BeamDeatailsDM76:
         return 0.4
 
     @classmethod
-    def get_minimum_long_rebar_area(
+    def get_min_long_rebar_area(
         cls,
         section_area: float,
         rebar_type: RebarsType = RebarsType.DEFORMED,
@@ -89,11 +91,11 @@ class BeamDeatailsDM76:
         return cls._rebar_min_ratio[rebar_type] * section_area
 
     @staticmethod
-    def get_minimum_stirrups_spacing(
+    def get_max_stirrups_spacing(
         section_depth: float
     ) -> float:
         """
-        Minimum spacing between stirrups in meters based on DM 76 Par 2.4.1.
+        Maximum spacing between stirrups in meters based on DM 76 Par 2.4.1.
 
         :param stirrup_area: Area of one stirrup in m2.
         :param section_depth: Effective depth of the section in meters.
@@ -105,16 +107,14 @@ class BeamDeatailsDM76:
         )
 
     @staticmethod
-    def check_min_stirrups_area(
-        area_per_meter: float
+    def get_min_stirrups_area(
     ) -> float:
         """
         Minimum area of stirrups per meter in m2.
 
-        :param area_per_meter: Area of one stirrup in m2.
-        :return: Minimum spacing between stirrups in meters.
+        :return: Minimum area per meter.
         """
-        return area_per_meter >= 0.0003 # 3 cmq/m par 2.17
+        return 0.0003 # 3 cmq/m par 2.17
 
     @classmethod
     def check_section(
@@ -133,29 +133,28 @@ class BeamDeatailsDM76:
         if min(
             section.bot_reinf_d,
             section.top_reinf_d
-        ) < cls.get_minimum_rebar_diameter():
+        ) < cls.get_min_rebar_diameter():
             return False
 
         # Check reinforcement area
         if min(
             section.bot_reinf_area,
             section.top_reinf_area
-        ) < cls.get_minimum_long_rebar_area(
+        ) < cls.get_min_long_rebar_area(
             section_area=section.area,
             rebar_type=rebar_type
         ):
             return False
 
         # Check stirrups spacing
-        if section.stirrups_spacing < cls.get_minimum_stirrups_spacing(
+        if section.stirrups_spacing > cls.get_max_stirrups_spacing(
             section_depth=section.h - section.cop
         ):
             return False
 
         # Check stirrups area
-        if not cls.check_min_stirrups_area(
-            area_per_meter=section.stirrups_reinf_area / section.stirrups_spacing
-        ):
+        area_per_meter = section.stirrups_reinf_area / section.stirrups_spacing
+        if area_per_meter < cls.get_min_stirrups_area():
             return False
 
         # Chcek satisfied
@@ -165,7 +164,7 @@ class BeamDeatailsDM76:
 class ColumnDeatailsRD39:
 
     @staticmethod
-    def get_minimum_rebar_diameter() -> int:
+    def get_min_rebar_diameter() -> int:
         """
         Minimum diameter of the main reinforcement bars in mm.
 
@@ -194,12 +193,12 @@ class ColumnDeatailsRD39:
         return column_min_cls_area * ratio
 
     @staticmethod
-    def get_minimum_stirrups_spacing(
+    def get_max_stirrups_spacing(
         long_bar_d: float,
         min_dim: float
     ) -> float:
         """
-        Minimum spacing between transversal reinforcement bars in meters.
+        Maximum spacing between transversal reinforcement bars in meters.
 
         :param long_bar_d: longitudinal bar diameter
         :param min_dim: minimum dimension of the section in meters
@@ -224,7 +223,7 @@ class ColumnDeatailsRD39:
         :return: True if the section meets the requirements, False otherwise.
         """
         # Check minimum longitudinal bar diameter
-        if min(section.bot_reinf_d, section.top_reinf_d) < cls.get_minimum_rebar_diameter():
+        if min(section.bot_reinf_d, section.top_reinf_d) < cls.get_min_rebar_diameter():
             return False
 
         # Check minimum longitudinal reinforcement area
@@ -233,11 +232,11 @@ class ColumnDeatailsRD39:
             return False
 
         # Check minimum stirrup spacing
-        min_spacing = cls.get_minimum_stirrups_spacing(
+        max_spacing = cls.get_max_stirrups_spacing(
             long_bar_d=section.bot_reinf_d,
             min_dim=min(section.b, section.h)
         )
-        if section.stirrups_spacing < min_spacing:
+        if section.stirrups_spacing < max_spacing:
             return False
 
         # All checks passed
@@ -251,7 +250,7 @@ class ColumnDeatailsDM76:
     }
 
     @staticmethod
-    def get_minimum_rebar_diameter() -> int:
+    def get_min_rebar_diameter() -> int:
         """
         Minimum diameter of the main reinforcement bars in mm.
         DM 76 Par 2.12.
@@ -280,7 +279,7 @@ class ColumnDeatailsDM76:
         )
 
     @staticmethod
-    def max_long_reinf_area(
+    def compute_max_long_reinf_area(
         column_area: float
     ) -> float:
         """
@@ -309,7 +308,7 @@ class ColumnDeatailsDM76:
         return cls._rebar_adm_stress[rebar_type]
 
     @staticmethod
-    def get_min_stirrups_spacing(
+    def get_max_stirrups_spacing(
         long_bar_d: float,
     ) -> float:
         """
@@ -337,7 +336,7 @@ class ColumnDeatailsDM76:
         :return: True if the section meets the requirements, False otherwise.
         """
         # Check minimum longitudinal bar diameter
-        if min(section.bot_reinf_d, section.top_reinf_d) < cls.get_minimum_rebar_diameter():
+        if min(section.bot_reinf_d, section.top_reinf_d) < cls.get_min_rebar_diameter():
             print('Failed due to minimum bar diameter')
             return False
 
@@ -351,22 +350,33 @@ class ColumnDeatailsDM76:
             return False
 
         # Check maximum longitudinal reinforcement area
-        max_reinf_area = cls.max_long_reinf_area(column_area=section.area)
+        max_reinf_area = cls.compute_max_long_reinf_area(column_area=section.area)
         if section.bot_reinf_area + section.top_reinf_area > max_reinf_area:
             print('Failed due to maximum reinforcement area')
             return False
 
         # Check minimum stirrup spacing
-        min_spacing = cls.get_min_stirrups_spacing(long_bar_d=section.bot_reinf_d)
-        if section.stirrups_spacing > min_spacing:
+        max_spacing = cls.get_max_stirrups_spacing(long_bar_d=section.bot_reinf_d)
+        if section.stirrups_spacing > max_spacing:
             print('Failed due to minimum stirrup spacing')
             return False
 
         # All checks passed
         return True
 
+# Get functions
+min_reinf_diameter_beams: dict[DetailingCode, int] = {
+    DetailingCode.RD_39: BeamDeatailsRD39.get_min_rebar_diameter(),
+    DetailingCode.DM_76: BeamDeatailsDM76.get_min_rebar_diameter()
+}
 
-def get_minimum_longitudinal_bar_area_column(
+min_reinf_diameter_colmns: dict[DetailingCode, int] = {
+    DetailingCode.RD_39: ColumnDeatailsRD39.get_min_rebar_diameter(),
+    DetailingCode.DM_76: ColumnDeatailsDM76.get_min_rebar_diameter()
+}
+
+
+def get_min_longitudinal_bar_area_column(
     column_area: float,
     column_min_cls_area: float,
     detailing_code: DetailingCode
@@ -397,35 +407,82 @@ def get_minimum_longitudinal_bar_area_column(
         raise ValueError('Invalid detailing code provided.')
 
 
-def get_minimum_stirrup_spacing_column(
+def get_max_stirrup_spacing_column(
     long_bar_d: float,
     min_dim: float,
     detailing_code: DetailingCode
 ) -> float:
     """
-    Computes the minimum longitudinal reinforcement area for a column based on the provided detailing code.
-    The calculation ensures that the reinforcement meets the requirements specified by the detailing code.
-
-    For RD_39, the calculation is based on the minimum strictly necessary area.
-    For DM_76, the calculation considers both the column area and the minimum strictly necessary area.
-
-    :param column_area: Total column cross-sectional area in m2.
-    :param column_min_cls_area: Minimum strictly necessary cross-sectional area in m2.
+    Computes the maximum stirrup spacing for a column based on the provided detailing code.
+    The calculation ensures that the stirrup spacing meets the requirements specified by the detailing code.
+    :param long_bar_d: Diameter of the longitudinal bars in mm.
+    :param min_dim: Minimum dimension of the column section in meters.
     :param detailing_code: Detailing code to be used for calculations (RD_39 or DM_76).
-    :return: Minimum longitudinal reinforcement area in m2.
-    :raises ValueError: If an invalid detailing code is provided.
+    :return: Maximum stirrup spacing in meters.
     """
     if detailing_code == DetailingCode.RD_39:
-        return ColumnDeatailsRD39.get_minimum_stirrups_spacing(
+        return ColumnDeatailsRD39.get_max_stirrups_spacing(
             long_bar_d=long_bar_d,
             min_dim=min_dim
         )
     elif detailing_code == DetailingCode.DM_76:
-        return ColumnDeatailsDM76.get_min_stirrups_spacing(
+        return ColumnDeatailsDM76.get_max_stirrups_spacing(
             long_bar_d=long_bar_d,
         )
     else:
         raise ValueError('Invalid detailing code provided.')
+
+
+def get_min_longitudinal_bar_area_beam(
+    section_area: float,
+    detailing_code: DetailingCode,
+    bar_type: RebarsType
+) -> float:
+    """
+    Computes the minimum longitudinal reinforcement area for a beam based on the provided detailing code.
+    The calculation ensures that the reinforcement meets the requirements specified by the detailing code.
+
+    :return: Minimum longitudinal reinforcement area in m2.
+    """
+    if detailing_code == DetailingCode.RD_39:
+        return 0
+    elif detailing_code == DetailingCode.DM_76:
+        return BeamDeatailsDM76.get_min_long_rebar_area(
+            section_area=section_area,
+            rebar_type=bar_type
+        )
+    else:
+        raise ValueError('Invalid detailing code provided.')
+
+
+def get_max_stirrup_spacing_beam(
+    section_depth: float,
+    rebar_d: int,
+    detailing_code: DetailingCode
+) -> float:
+    """
+    Computes the max stirrup spacing for a beam based on the provided detailing code.
+    The calculation ensures that the stirrup spacing meets the requirements specified by the detailing code.
+    :param section_depth: Effective depth of the beam section in meters.
+    :param detailing_code: Detailing code to be used for calculations (RD_39 or DM_76).
+    :return: Minimum stirrup spacing in meters.
+    :raises ValueError: If an invalid detailing code is provided.
+    """
+    if detailing_code == DetailingCode.RD_39:
+        return .33
+    elif detailing_code == DetailingCode.DM_76:
+        max_spacing = BeamDeatailsDM76.get_max_stirrups_spacing(
+            section_depth
+        )
+        spacing_min_area = BeamDeatailsDM76.get_min_stirrups_area()
+        return min(
+            max_spacing,
+            reinforcement_area(2, rebar_d) * mmq_mq / spacing_min_area
+        )
+    else:
+        raise ValueError('Invalid detailing code provided.')
+
+
 
 
 # Checkers
