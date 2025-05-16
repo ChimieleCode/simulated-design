@@ -6,7 +6,7 @@ from scipy.optimize import minimize
 from src.section_design.detailing_minimums import (
     DetailingCode, column_section_detail_checker,
     get_max_stirrup_spacing_column, get_min_longitudinal_bar_area_column,
-    min_reinf_diameter_colmns)
+    min_reinf_diameter_columns)
 from src.section_design.section_geometry import (RectangularSection,
                                                  RectangularSectionElement,
                                                  SectionGeometry)
@@ -642,7 +642,7 @@ def bidirectional_column_design(
         detailing_code=detailing_code
     ) / 2 # divided by 2 for top and bottom reinforcement
 
-    min_diameter = min_reinf_diameter_colmns.get(
+    min_diameter = min_reinf_diameter_columns.get(
         key=detailing_code,
         default=0
     ) # type: ignore[reportCallIssue]
