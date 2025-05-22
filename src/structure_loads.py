@@ -2,6 +2,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 import numpy as np
+import numpy.typing as npt
 
 from src.frame_definition import BuildingGeometry
 from src.portal_frame_method import (RegularSpanFrameSollicitations,
@@ -9,6 +10,8 @@ from src.portal_frame_method import (RegularSpanFrameSollicitations,
 from src.seismic_codes import (BuildingCode, SeismicCat, SeismicForces,
                                SeismicWeight)
 from src.sollicitations import MemberSollicitation
+
+G: float = 9.81  # Acceleration due to gravity in m/s²
 
 
 @dataclass
@@ -299,8 +302,12 @@ class GravityLoadDesignFullSpan(StructureLoads):
         :param include_overload: Whether to include overload in the calculations.
         :return: A list of BeamSollicitations for each floor, containing the moments and shears for the beams.
         """
+        overload_factor = 1.
+        if not include_overload:
+            overload_factor = 0.
+
         floors = building_geometry.floors
-        loads_floor, loads_roof = self._get_beam_loads(building_geometry, include_overload)
+        loads_floor, loads_roof = self._get_beam_loads(building_geometry, overload_factor)
 
         floor_moments = [compute_beam_moment_end(q, L) for q, L in loads_floor]
         roof_moments = [compute_beam_moment_end(q, L) for q, L in loads_roof]
@@ -313,7 +320,27 @@ class GravityLoadDesignFullSpan(StructureLoads):
         all_solicitations = [solicitations_floor] * (floors - 1) + [solicitations_roof]
         return [BeamSollicitations(*floor) for floor in all_solicitations]
 
-    def compute_column_axials(self, building_geometry: BuildingGeometry, include_overload: bool = True) -> list[ColumnSollicitations]:
+    def compute_vertical_sollicitations(self, building_geometry: BuildingGeometry, overload_factor: float = 1.) -> list[npt.NDArray]:
+        """
+        Compute the vertical loads for the columns in the building.
+        The function calculates the axial loads for both the floor and roof columns,
+        and returns a list of ColumnSollicitations for each floor.
+
+        :param building_geometry: The geometry of the building, including spans and number of floors.
+        :param overload_factor: A factor to adjust the overload for the calculations.
+        :return: A list of ColumnSollicitations for each floor, containing the axial loads for the columns.
+        """
+        floors = building_geometry.floors
+        roof, floor = self._get_column_loads(building_geometry, overload_factor)
+
+        solicitations_roof = [MemberSollicitation(N=load) for load in roof]
+        solicitations_floor = [MemberSollicitation(N=load) for load in floor]
+
+        combined = [np.array(solicitations_floor)] * (floors - 1) + [np.array(solicitations_roof)]
+
+        return combined
+
+    def compute_column_axials(self, building_geometry: BuildingGeometry, include_overload: bool = True, overload_factor: float = 1.) -> list[ColumnSollicitations]:
         """
         Compute the axial loads for the columns in the building.
         The function calculates the axial loads for both the floor and roof columns,
@@ -324,20 +351,18 @@ class GravityLoadDesignFullSpan(StructureLoads):
         :param include_overload: Whether to include overload in the calculations.
         :return: A list of ColumnSollicitations for each floor, containing the axial loads for the columns.
         """
-        floors = building_geometry.floors
-        roof, floor = self._get_column_loads(building_geometry, include_overload)
 
-        solicitations_roof = [MemberSollicitation(N=load) for load in roof]
-        solicitations_floor = [MemberSollicitation(N=load) for load in floor]
+        if not include_overload:
+            overload_factor = 0.
 
-        combined = [np.array(solicitations_floor)] * (floors - 1) + [np.array(solicitations_roof)]
-        total = [sum(combined[i:], np.array(MemberSollicitation())) for i in range(floors)]
+        combined = self.compute_vertical_sollicitations(building_geometry, overload_factor)
+        total = [sum(combined[i:], np.array(MemberSollicitation())) for i in range(building_geometry.floors)]
 
         return [ColumnSollicitations(*floor) for floor in total]
 
-    def _get_beam_loads(self, bg: BuildingGeometry, include_overload: bool = True) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
-        floor_load = self.floaring_load + include_overload * self.overload
-        roof_load = self.floaring_load + include_overload * self.roof_overload
+    def _get_beam_loads(self, bg: BuildingGeometry, overload_factor: float) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
+        floor_load = self.floaring_load + overload_factor * self.overload
+        roof_load = self.floaring_load + overload_factor * self.roof_overload
         Lx, Ly = bg.span_main, bg.span_cross
 
         beams_area = [.5 * Ly, 0, Ly, 0]
@@ -354,9 +379,9 @@ class GravityLoadDesignFullSpan(StructureLoads):
         ]
         return floor_loads, roof_loads
 
-    def _get_column_loads(self, bg: BuildingGeometry, include_overload: bool = True) -> tuple[list[float], list[float]]:
-        floor_area = self.floaring_load + include_overload * self.overload
-        roof_area = self.floaring_load + include_overload * self.roof_overload
+    def _get_column_loads(self, bg: BuildingGeometry, overload_factor: float) -> tuple[list[float], list[float]]:
+        floor_area = self.floaring_load + overload_factor * self.overload
+        roof_area = self.floaring_load + overload_factor * self.roof_overload
         h = bg.floor_height
         Lx, Ly = bg.span_main, bg.span_cross
         A = Lx * Ly
@@ -370,3 +395,37 @@ class GravityLoadDesignFullSpan(StructureLoads):
         roof = area_factors * roof_area + beam_lengths * self.beam_load + column_load
         # Return tolist to convert numpy arrays to lists
         return roof.tolist(), floor.tolist()
+
+
+# used to define files for SLaMA
+@dataclass
+class MassDefinition(StructureLoads):
+    """
+    Class to define the mass properties of a building for seismic analysis.
+    """
+    def get_mass(self, bg: BuildingGeometry, overload_factor: float = 1.) -> list[float]:
+        """
+        Calculate the total mass of the building based on its geometry and loads.
+
+        :param bg: The geometry of the building, including spans and number of floors.
+        :param overload_factor: A factor to adjust the overload for the calculations.
+        :return: A list of total mass values for each floor of the building in tons.
+        """
+        # Calculate the total mass of the building
+        floor_mass = compute_total_load(
+            area_loads=[(bg.area, self.floaring_load + overload_factor * self.overload)],
+            line_loads=[
+                (bg.perimeter, self.infill_load),
+                (bg.get_total_beam_length(True, True), self.beam_load)
+            ],
+            punctual_loads=[(bg.column_count, self.column_load * bg.floor_height)]
+        ) / G
+        rooftop_mass = compute_total_load(
+            area_loads=[(bg.area, self.floaring_load + overload_factor * self.roof_overload)],
+            line_loads=[
+                (bg.perimeter, 0.5 * self.infill_load),
+                (bg.get_total_beam_length(True, True), self.beam_load)
+            ],
+            punctual_loads=[(bg.column_count, 0.5 * self.column_load * bg.floor_height)]
+        ) / G
+        return [floor_mass] * (bg.floors - 1) + [rooftop_mass]

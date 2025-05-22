@@ -1,19 +1,24 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from src.frame_definition import BuildingBox, BuildingGeometryFactory
 from src.section_design.detailing_minimums import DetailingCode, RebarsType
 from src.seismic_codes import BuildingCode, SeismicCat
+from src.slama_parser import SLaMAInputBuilder
 from src.sollicitation_section_dispatch import (AdmStresses, BeamDesignOptions,
                                                 BuildingSectionDesign,
                                                 ColumnDesignOptions)
-from src.structure_loads import GravityLoadDesignFullSpan, SeismicLoadDesign
+from src.structure_loads import (GravityLoadDesignFullSpan, SeismicLoadDesign,
+                                 StructureLoads)
+from src.utils import export_to_json
 
 EXAMPLE_INPUT: dict = {
     'geometry': {
         'length': 20.0,
         'width': 16.0,
         'height': 7.0,
-        'floors': 2,
+        'floors': 3,
     },
     'seismic': {
         'building_code': BuildingCode.RDL_2105,
@@ -92,17 +97,22 @@ def main(input: dict):
     rebar_type = RebarsType(input['rebar_type'])
 
     # STEP 2: define the loads
-    # Cmpute seismic loads for the structure
-    seismic_design = SeismicLoadDesign(
-        **input['seismic'],
+    # Get and parse vertical loads
+    strucutre_loads = StructureLoads(
         **input['gravity']
+    )
+
+    # Compute seismic loads for the structure
+    seismic_design = SeismicLoadDesign(
+        **strucutre_loads.__dict__,
+        **input['seismic']
     )
     seismic_loads = seismic_design.compute_frame_sollicitations(building_geometry)
     print(seismic_loads)
 
     # Compute gravity loads for the structure
     gravity_design = GravityLoadDesignFullSpan(
-        **input['gravity']
+        **strucutre_loads.__dict__
     )
     gravity_loads = gravity_design.compute_gravity_loads(building_geometry)
     print(gravity_loads)
@@ -127,9 +137,35 @@ def main(input: dict):
     )
 
     # STEP 4: parse
-    print('alla sections', sections)
+    slama_parser = SLaMAInputBuilder(
+        building_geometry=building_geometry,
+        sections=sections,
+        structure_loads=strucutre_loads,
+        overload_factor=.3
+    )
+    slama_file = slama_parser.build_input_file(
+        'Test',
+        concrete={
+            'id': 'C14',
+            'fc': 16000.0,
+            'E': 25186010.36,
+            'epsilon_0': 0.0007,
+            'epsilon_u': 0.0035
+        },
+        steel={
+            'id': 'Fe430',
+            'fy': 392000.0,
+            'fu': 420000.0,
+            'E': 210000000,
+            'epsilon_u': 0.06
+        }
+    )
 
-
+    # STEP 5: Save the file
+    export_to_json(
+        Path('./example.json'),
+        slama_file
+    )
 
 if __name__ == '__main__':
     main(EXAMPLE_INPUT)
