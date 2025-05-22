@@ -31,7 +31,7 @@ def unconditioned_design_bottom_reinf(
     b: float,
     sigma_cls_adm: float,
     sigma_s_adm: float,
-    n: int = 15
+    n: float = 15
 ) -> tuple[float, float]:
     """
     Calculates the unconditioned design of bottom reinforcement in a rectangular beam section.
@@ -168,7 +168,7 @@ class SkwBeamSectionDesign:
             concrete_contribution = 0.5 * b * y_neg * sigma_cls_neg * (cop - y_neg / 3)
             # Return the difference between the contributions and the moment
             moment_balance = steel_contribution + concrete_contribution - M_neg
-            return moment_balance / M_neg   # Normalized to  to improve convergence
+            return moment_balance / M_pos   # Normalized to  to improve convergence, M_neg can be 0
 
         def moment_balance_bot_reinforcement_constraint_neg(x) -> float:
             # Setup
@@ -181,7 +181,8 @@ class SkwBeamSectionDesign:
             concrete_contribution = 0.5 * b * y_neg * sigma_cls_neg * (d - y_neg / 3)
             # Return the difference between the contributions and the moment
             moment_balance = steel_contribution + concrete_contribution - M_neg
-            return moment_balance / M_neg   # Normalized to  to improve convergence
+            return moment_balance / M_pos   # Normalized to  to improve convergence, M_neg can be 0
+
 
         def maximum_adm_steel_stress_top_constraint_pos(x) -> float:
             # Setup
@@ -517,7 +518,8 @@ def design_beam_element(
         rebar_type: RebarsType,
         cop: float = 0.03,
         n: float = 15,
-        shear_rebar_diameter: int = 6
+        shear_rebar_diameter: int = 6,
+        b_section: float = 0.3
 ) -> RectangularSectionElement:
     """
     Designs a beam element based on positive and negative bending moments, shear force,
@@ -534,9 +536,7 @@ def design_beam_element(
     :return: Designed rectangular section with specified reinforcement
     """
     # Minimum width
-    b_min = 0.3
     min_rebar_diameter = min_reinf_diameter_beams.get(detailing_code, 0)  # mm
-
 
     # Design the beam section based on the provided parameters
     section = design_beam_section(
@@ -546,7 +546,7 @@ def design_beam_element(
         sigma_s_adm=sigma_s_adm,
         detailing_code=detailing_code,
         rebar_type=rebar_type,
-        b_min=b_min,
+        b_min=b_section,
         cop=cop,
         n=n,
         min_rebar_d=min_rebar_diameter,
@@ -578,13 +578,13 @@ def design_beam_element(
         stirrups_spacing=max_spacing_stirrups
     )
 
-    beam_chech = beam_section_detail_checker(
+    beam_check = beam_section_detail_checker(
         detailing_code=detailing_code,
         section=section_element,
         rebar_type=rebar_type
     )
 
-    assert beam_chech, 'Beam section does not pass detailing code check'
+    assert beam_check, 'Beam section does not pass detailing code check'
 
     # Return the designed rectangular section element with calculated reinforcement
     return section_element

@@ -448,7 +448,20 @@ def get_max_stirrup_spacing_beam(
         raise ValueError('Invalid detailing code provided.')
 
 
-
+def get_shear_stirrups_share(
+    detailing_code: DetailingCode
+) -> float:
+    """
+    Computes the minimum share of shear action that has to be taken by stirrups based on the provided detailing code.
+    :param detailing_code: Detailing code to be used for calculations (RD_39 or DM_76).
+    :return: Minimum share of shear action in ratio.
+    """
+    if detailing_code == DetailingCode.RD_39:
+        return BeamDetailsRD39.get_shear_stirrups_share()
+    elif detailing_code == DetailingCode.DM_76:
+        return BeamDetailsDM76.get_shear_stirrups_share()
+    else:
+        raise ValueError('Invalid detailing code provided.')
 
 # Checkers
 def column_section_detail_checker(

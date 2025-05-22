@@ -93,7 +93,7 @@ class ShearSectionDesignStirrups:
         Ast = reinforcement_area(2, diameter) * mmq_mq
 
         # Compute the required stirrup pitch (spacing) based on the applied shear force and stirrup properties
-        return min(
+        return float(min(
             max_spacing,
             compute_transversal_reinf_pitch(
                 V=V_striups,
@@ -101,4 +101,4 @@ class ShearSectionDesignStirrups:
                 d=d,
                 sigma_s_adm=sigma_s_adm
             )
-        )
+        ))
