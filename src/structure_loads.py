@@ -360,7 +360,7 @@ class GravityLoadDesignFullSpan(StructureLoads):
 
         return [ColumnSollicitations(*floor) for floor in total]
 
-    def _get_beam_loads(self, bg: BuildingGeometry, overload_factor: float) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
+    def _get_beam_loads(self, bg: BuildingGeometry, overload_factor: float = 1.) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
         floor_load = self.floaring_load + overload_factor * self.overload
         roof_load = self.floaring_load + overload_factor * self.roof_overload
         Lx, Ly = bg.span_main, bg.span_cross
@@ -379,7 +379,7 @@ class GravityLoadDesignFullSpan(StructureLoads):
         ]
         return floor_loads, roof_loads
 
-    def _get_column_loads(self, bg: BuildingGeometry, overload_factor: float) -> tuple[list[float], list[float]]:
+    def _get_column_loads(self, bg: BuildingGeometry, overload_factor: float = 1.) -> tuple[list[float], list[float]]:
         floor_area = self.floaring_load + overload_factor * self.overload
         roof_area = self.floaring_load + overload_factor * self.roof_overload
         h = bg.floor_height

@@ -232,7 +232,8 @@ class BuildingSectionDesign:
                     **beam_adm_stresses.__dict__,
                     **beam_design_options.__dict__,
                     detailing_code=self.detailing_code,
-                    rebar_type=self.rebar_type
+                    rebar_type=self.rebar_type,
+                    min_h=0.3
                 )
                 beam_section_floor += (beam_sec,)
             beam_sections.append(beam_section_floor)    # type: ignore[reportArgumentType]

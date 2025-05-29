@@ -31,7 +31,7 @@ def unconditioned_design_bottom_reinf(
     b: float,
     sigma_cls_adm: float,
     sigma_s_adm: float,
-    n: float = 15
+    n: int = 15
 ) -> tuple[float, float]:
     """
     Calculates the unconditioned design of bottom reinforcement in a rectangular beam section.
@@ -341,6 +341,7 @@ def design_beam_section(
         n: float = 15,
         min_rebar_d: int = 12,
         max_rebar_count: int = 6,
+        min_h: float = 0.4,
         section_geometry: SectionGeometry | None = None
     ) -> RectangularSection:
     """
@@ -360,7 +361,11 @@ def design_beam_section(
     :param n: Modular ratio (Es/Ec), defaults to 15
     :param min_As: Minimum required steel area in m², defaults to 5e-4 m²
     :param min_rebar_d: Minimum diameter of reinforcement bars in mm, defaults to 12 mm
+    :param detailing_code: Detailing code to be used for the design
+    :param rebar_type: Type of reinforcement bars to be used
+    :param min_h: Minimum height of the section in m, defaults to 0.4 m
     :param max_rebar_count: Maximum number of reinforcement bars, defaults to 6
+    :param section_geometry: Optional predefined section geometry, defaults to None
     :raises ValueError: Raised if no valid reinforcement solution is found for top or bottom reinforcement
     :return: Designed rectangular section with specified reinforcement
     """
@@ -388,7 +393,7 @@ def design_beam_section(
 
         # Round section height to nearest tolerance
         h_design = round_to_nearest(
-            d_design + cop,
+            max(d_design + cop, min_h),
             tol=.05
         )
 
@@ -519,7 +524,8 @@ def design_beam_element(
         cop: float = 0.03,
         n: float = 15,
         shear_rebar_diameter: int = 6,
-        b_section: float = 0.3
+        b_section: float = 0.3,
+        min_h: float = 0.4
 ) -> RectangularSectionElement:
     """
     Designs a beam element based on positive and negative bending moments, shear force,
@@ -533,6 +539,8 @@ def design_beam_element(
     :param detailing_code: Detailing code for the design
     :param cop: Cover of concrete in m, defaults to 0.05 m
     :param shear_rebar_diameter: Diameter of shear reinforcement in mm, defaults to 6 mm
+    :param n: Modular ratio (Es/Ec), defaults to 15
+    :param b_section: Width of the beam section in m, defaults to 0.4 m
     :return: Designed rectangular section with specified reinforcement
     """
     # Minimum width
@@ -551,6 +559,7 @@ def design_beam_element(
         n=n,
         min_rebar_d=min_rebar_diameter,
         max_rebar_count=6,
+        min_h=min_h
     )
 
     # Calculate shear reinforcement area

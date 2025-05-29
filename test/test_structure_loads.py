@@ -152,7 +152,7 @@ class TestGravityLoadDesignFullSpan(unittest.TestCase):
 
     def test_get_beam_loads(self):
         # Compute the beam loads
-        floor_loads, roof_loads = self.design._get_beam_loads(self.bg)
+        floor_loads, roof_loads = self.design._get_beam_loads(self.bg, overload_factor=1.)
 
         # Expected values based on the mock geometry and loads
         expected_floor_loads = [
@@ -179,7 +179,7 @@ class TestGravityLoadDesignFullSpan(unittest.TestCase):
 
     def test_get_column_loads(self):
         # Compute the column loads
-        roof_cols, floor_cols = self.design._get_column_loads(self.bg)
+        roof_cols, floor_cols = self.design._get_column_loads(self.bg, overload_factor=1)
 
         # Expected values based on the mock geometry and loads
         expectd_roof_cols = [
