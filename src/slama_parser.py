@@ -295,7 +295,7 @@ class SLaMAInputBuilder:
 
         return {
             'tag': tag,
-            'maerials': {
+            'materials': {
                 'concrete': concrete,
                 'steel': steel
             },
