@@ -305,7 +305,7 @@ class SLaMAInputBuilder:
                     (main_frame, (self.building_geometry.n_main_frames - 2)),
                     (main_border_frame, 2)
                 ],
-                'border_frames': [
+                'cross_frames': [
                     (cross_frame, (self.building_geometry.n_cross_frames - 2)),
                     (cross_border_frame, 2)
                 ]
