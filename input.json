@@ -1,0 +1,45 @@
+{
+    "geometry": {
+        "length": 20.0,
+        "width": 16.0,
+        "height": 7.0,
+        "floors": 3
+    },
+    "seismic": {
+        "building_code": "RDL 2105",
+        "seismic_cat": "II"
+    },
+    "gravity": {
+        "floaring_load": 5,
+        "infill_load": 7.5,
+        "beam_load": 3.75,
+        "overload": 3,
+        "roof_overload": 1.5,
+        "column_load": 13.5
+    },
+    "columns": {
+        "adm_stress": {
+            "sigma_s_adm": 180000,
+            "sigma_cls_adm": 8000,
+            "n": 15
+        },
+        "options": {
+            "cop": 0.03,
+            "shear_rebar_diameter": 8
+        }
+    },
+    "beams": {
+        "adm_stress": {
+            "sigma_s_adm": 180000,
+            "sigma_cls_adm": 8000,
+            "n": 15
+        },
+        "options": {
+            "cop": 0.03,
+            "shear_rebar_diameter": 8,
+            "b_section": 0.3
+        }
+    },
+    "details": "DM_76",
+    "rebar_type": "Deformed"
+}

@@ -1,65 +1,21 @@
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 
+from model.input_validation import InputModel
 from src.frame_definition import BuildingBox, BuildingGeometryFactory
 from src.section_design.detailing_minimums import DetailingCode, RebarsType
-from src.seismic_codes import BuildingCode, SeismicCat
 from src.slama_parser import SLaMAInputBuilder
 from src.sollicitation_section_dispatch import (AdmStresses, BeamDesignOptions,
                                                 BuildingSectionDesign,
                                                 ColumnDesignOptions)
 from src.structure_loads import (GravityLoadDesignFullSpan, SeismicLoadDesign,
                                  StructureLoads)
-from src.utils import export_to_json
+from src.utils import export_to_json, import_from_json
 
-EXAMPLE_INPUT: dict = {
-    'geometry': {
-        'length': 20.0,
-        'width': 16.0,
-        'height': 7.0,
-        'floors': 3,
-    },
-    'seismic': {
-        'building_code': BuildingCode.RDL_2105,
-        'seismic_cat': SeismicCat.CatII
-    },
-    'gravity': {
-        'floaring_load': 5,
-        'infill_load': 7.5,
-        'beam_load': 3.75,
-        'overload': 3,
-        'roof_overload': 1.5,
-        'column_load': 13.5,
-    },
-    'columns': {
-        'adm_stress': {
-            'sigma_s_adm': 180000,
-            'sigma_cls_adm': 8000,
-            'n': 15.
-        },
-        'options': {
-            'cop': 0.03,
-            'shear_rebar_diameter': 8
-        },
-    },
-    'beams': {
-        'adm_stress': {
-            'sigma_s_adm': 180000,
-            'sigma_cls_adm': 8000,
-            'n': 15.
-        },
-        'options': {
-            'cop': 0.03,
-            'shear_rebar_diameter': 8,
-            'b_section': 0.3
-        },
-    },
-    'details': 'DM_76',
-    'rebar_type': 'Deformed'
-}
 
-def main(input: dict):
+def main(input_dct: dict, output_path: Path) -> None:
     """
     Main function to create a BuildingGeometry object and print its details.
 
@@ -68,7 +24,7 @@ def main(input: dict):
     # STEP 1: create the frame grid system
 
     # Create a BuildingBox object from the input dictionary
-    bbox = BuildingBox(**input['geometry'])
+    bbox = BuildingBox(**input_dct['geometry'])
 
     # Create a BuildingGeometryFactory object with specified parameters
     factory = BuildingGeometryFactory(
@@ -82,30 +38,30 @@ def main(input: dict):
 
     # Design Options
     beam_adm_stress = AdmStresses(
-        **input['beams']['adm_stress']
+        **input_dct['beams']['adm_stress']
     )
     beam_opts = BeamDesignOptions(
-        **input['beams']['options']
+        **input_dct['beams']['options']
     )
     col_adm_stress = AdmStresses(
-        **input['columns']['adm_stress']
+        **input_dct['columns']['adm_stress']
     )
     col_opts = ColumnDesignOptions(
-        **input['columns']['options']
+        **input_dct['columns']['options']
     )
-    detailing_code = DetailingCode(input['details'])
-    rebar_type = RebarsType(input['rebar_type'])
+    detailing_code = DetailingCode(input_dct['details'])
+    rebar_type = RebarsType(input_dct['rebar_type'])
 
     # STEP 2: define the loads
     # Get and parse vertical loads
     strucutre_loads = StructureLoads(
-        **input['gravity']
+        **input_dct['gravity']
     )
 
     # Compute seismic loads for the structure
     seismic_design = SeismicLoadDesign(
         **strucutre_loads.__dict__,
-        **input['seismic']
+        **input_dct['seismic']
     )
     seismic_loads = seismic_design.compute_frame_sollicitations(building_geometry)
     print(seismic_loads)
@@ -143,6 +99,7 @@ def main(input: dict):
         structure_loads=strucutre_loads,
         overload_factor=.3
     )
+    # Refactor and include in the input
     slama_file = slama_parser.build_input_file(
         'Test',
         concrete={
@@ -163,9 +120,20 @@ def main(input: dict):
 
     # STEP 5: Save the file
     export_to_json(
-        Path('./example.json'),
+        output_path,
         slama_file
     )
 
 if __name__ == '__main__':
-    main(EXAMPLE_INPUT)
+    parser = argparse.ArgumentParser(description='Process building design input and output files.')
+    parser.add_argument('--input', type=str, required=True, help='Path to the input JSON file')
+    parser.add_argument('--output', type=str, default='./example.json', help='Path to the output JSON file')
+    args = parser.parse_args()
+
+
+    input_dict = import_from_json(Path(args.input))
+    output_path = Path(args.output)
+
+    validated_input = InputModel(**input_dict)
+
+    main(validated_input.model_dump(), output_path=output_path)
